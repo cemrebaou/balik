@@ -2195,6 +2195,12 @@
     return { rows, names, ayar, sig: JSON.stringify({ c: names, r: rows, a: ayar }) };
   };
   const local = () => pack(app.classes.map(c => c.name), app.classData().flatMap(c => c.rows.map(f => [f.name, f.score, f.spriteIndex, c.name, f.picked])), app.settingsCode());
+  // Tablodan gelen cevap. Eski script (ayar/kalınlık göndermeyen) hâlâ yüklüyse buradaki ayarlar ve seçimler korunur
+  const remote = r => {
+    if (r.ayar !== undefined) return pack(r.sinif, r.rows, r.ayar);
+    const L = local(), pk = new Set(L.rows.filter(x => x[4]).map(x => x[3] + "\n" + x[0]));
+    return pack(r.sinif, (r.rows || []).map(x => [x[0], x[1], x[2], x[3], pk.has(String(x[3]).trim() + "\n" + String(x[0]).trim())]), L.ayar);
+  };
   const unsynced = () => !!cfg && local().sig !== base;
   const setBase = s => { base = s; lsSet(K_BASE, s); };
 
@@ -2364,7 +2370,7 @@
       const r = await read(cfg.ad, cfg.pin, cfg.tok || "");
       if (!r.ok) return fail(r);
       lastSync = Date.now();
-      const P = pack(r.sinif, r.rows, r.ayar), L = local();
+      const P = remote(r), L = local();
       const wasFirst = first; first = false;
       if (P.sig === L.sig) { setBase(P.sig); return setStatus("ok", undefined, wasFirst ? "İnternetteki kayıtla aynı" : ""); }
       if (wasFirst || L.sig === base) { apply(P); return setStatus("ok", undefined, "İnternetteki kayıt yüklendi"); }
@@ -2377,7 +2383,7 @@
   // Ad + PIN doğru (r: oku cevabı): giriş yap ve internetteki listeyi yükle.
   // Hesap boşsa ve burada öğrenci varsa buradaki liste hesaba kaydedilir.
   async function join(r) {
-    const P = pack(r.sinif, r.rows, r.ayar);
+    const P = remote(r);
     const en = await enter(ctx.ad, ctx.pin);
     if (!en.ok) return view("start", errTxt(en), "sh-err");
     lastSync = Date.now();
