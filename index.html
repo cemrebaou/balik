@@ -273,8 +273,12 @@
     .editable-title:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.4); }
     .editable-title:focus { background: rgba(255,255,255,0.2); border-color: #38bdf8; }
     
+    .search-row { display: flex; gap: 6px; margin-top: 8px; }
+    #fish-filter { flex: none; width: 32px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.1); font-size: 15px; cursor: pointer; opacity: .45; filter: grayscale(1); transition: opacity .15s, background .15s; }
+    #fish-filter:hover { opacity: .8; }
+    #fish-filter.on { opacity: 1; filter: none; background: #0ea5e9; border-color: #38bdf8; }
     #roster-search {
-      width: 100%; margin-top: 8px; padding: 7px 10px; border-radius: 6px; font-size: 13px; outline: none;
+      width: 100%; padding: 7px 10px; border-radius: 6px; font-size: 13px; outline: none;
       border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.1); color: #fff; user-select: text;
       transition: border-color 0.15s, background 0.15s;
     }
@@ -301,7 +305,7 @@
 
     #roster-list, #queue-list { list-style: none; margin: 10px 0 0 0; padding: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; transition: max-height 0.25s ease-out, opacity 0.2s ease; }
     #roster-panel.collapsed #roster-list { max-height: 0; margin: 0; opacity: 0; overflow: hidden; pointer-events: none; }
-    #roster-panel.collapsed #roster-search, #roster-panel.collapsed .sort-bar { display: none; }
+    #roster-panel.collapsed .search-row, #roster-panel.collapsed .sort-bar { display: none; }
     #roster-list::-webkit-scrollbar, #queue-list::-webkit-scrollbar { width: 5px; }
     #roster-list::-webkit-scrollbar-thumb, #queue-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.25); border-radius: 4px; }
     
@@ -345,6 +349,7 @@
     }
     .roster-thumb { width: 28px; height: 22px; object-fit: contain; flex-shrink: 0; pointer-events: none; }
     .roster-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 120px; font-weight: 500; }
+    .roster-item.picked .roster-name { font-weight: 800; }   /* Sırayla Rastgele'de bu turda seçilmiş */
     .roster-controls { display: flex; align-items: center; gap: 4px; }
     .score-badge { min-width: 22px; text-align: center; font-weight: bold; color: #facc15; }
     .ctrl-btn { border: none; border-radius: 4px; cursor: pointer; font-weight: bold; display: inline-flex; align-items: center; justify-content: center; height: 22px; padding: 0 6px; font-size: 12px; }
@@ -477,7 +482,7 @@
             title="Değiştirmek için tıklayın" onclick="event.stopPropagation();" onblur="app.saveClassTitle()" onkeydown="app.handleTitleKey(event)">Sınıf Listesi</span>
       <span>(<span id="fish-count">0</span>)</span>
     </div>
-    <button class="toggle-btn" id="toggle-arrow" title="Gizle/Aç">▼</button>
+    <button class="toggle-btn" title="Gizle/Aç">▼</button>
   </div>
   <div id="class-tabs" onclick="event.stopPropagation();"></div>
   <div class="class-score-row" onclick="event.stopPropagation();">
@@ -488,7 +493,10 @@
       <button class="ctrl-btn btn-plus" onclick="app.classScoreStep(1)" title="Sınıftaki herkese 1 puan ver">+</button>
     </div>
   </div>
-  <input type="search" id="roster-search" placeholder="🔍 Öğrenci ara..." autocomplete="off" spellcheck="false">
+  <div class="search-row">
+    <input type="search" id="roster-search" placeholder="🔍 Öğrenci ara..." autocomplete="off" spellcheck="false">
+    <button id="fish-filter" onclick="app.toggleFishFilter()" title="Balık filtresi: açıkken arama ekrandaki balıklara da uygulanır">🐟</button>
+  </div>
   <div class="sort-bar">
     <button class="sort-btn" id="sort-name" onclick="app.setSort('name')" title="İsme göre sırala (A-Z / Z-A / varsayılan)">İsim <span class="sa"></span></button>
     <button class="sort-btn" id="sort-score" onclick="app.setSort('score')" title="Puana göre sırala (çoktan aza / azdan çoğa / varsayılan)">Puan <span class="sa"></span></button>
@@ -565,7 +573,6 @@
     CLASS_KEY: "aquarium_classes_v1",                  // {cur, list:[{name, rows:[{id,name,score,spriteIndex}]}]}
     TITLE_KEY: "aquarium_class_title_idb_v9",
     COLLAPSED_KEY: "aquarium_collapsed_idb_v9",
-    THEME_KEY2: "aquarium_theme_v2",
     VISIBLE_COUNT: 5,                 // ekranda görünecek en yüksek puan basamağı (farklı puan değeri) sayısı
     BASE_W: 75, BASE_H: 48, GROWTH: 3.5
   };
@@ -662,10 +669,13 @@
 <div class="dec fx" id="d19"><div class="rb" style="--i:0;border-color:#ff5252"></div><div class="rb" style="--i:1;border-color:#ffa726"></div><div class="rb" style="--i:2;border-color:#ffee58"></div><div class="rb" style="--i:3;border-color:#66bb6a"></div><div class="rb" style="--i:4;border-color:#42a5f5"></div><div class="rb" style="--i:5;border-color:#7e57c2"></div></div>
   `;
   const DECOR_IDS = ["d2", "d3", "d4", "d5", "d6", "d7", "d8", "d10", "d14", "d15", "d16", "d17", "d18", "d19", "d21", "d22", "d23", "d24"];
-  const THR_KEY = "aquarium_threshold_v1", SORT_KEY = "aquarium_sort_v1", QUEUE_KEY = "aquarium_queue_collapsed";
+  const QUEUE_KEY = "aquarium_queue_collapsed";
+  // Öğretmen ayarları tek kodda: sıra eşiği (0 = Tümü) - tema - mouse kilidi - sınıf puan eşiği - sıralama
+  const SET_KEY = "aquarium_settings_v1";
+  const THEMES = ["auto", "morning", "evening", "night"];
+  const SORTS = [["none", true], ["name", true], ["name", false], ["score", false], ["score", true]];   // 0 sırasız, 1 isim A-Z, 2 isim Z-A, 3 puan çoktan aza, 4 puan azdan çoğa
   // v2: sprite'lar ikili PNG Blob olarak saklanıyor (v1 base64 dataURL metniydi)
   const SPRITE_KEY = "fish_sprites_emb2";
-  const VIS_KEY = "aquarium_visible_count_v1", ALL_KEY = "aquarium_show_all_v1";   // Sıra Eşiği ve "Tümü" ayarları
   const FRAME_MS = 1000 / 60;           // Hareket 60 FPS'e göre normalize edilir (dt)
   const RANK_ICONS = { gold: "👑", silver: "🥈", bronze: "🥉" };
   const RANK_ORDER = ["gold", "silver", "bronze"];
@@ -859,11 +869,10 @@
       this.bubbles = []; this.particles = []; this.wakeBubbles = []; this.rankTrails = []; this.fishSprites = [];
       this.audio = new AudioManager();
       this.isPicking = false; this.activeFishForPicker = null; this.clickLocked = false;
-      this.threshold = Math.max(1, parseInt(localStorage.getItem(THR_KEY)) || 10);
-      // Sıra Eşiği: ekranda görünecek en yüksek puan basamağı sayısı (eskiden sabit 5). "Tümü" açıksa sayıdan bağımsız herkes görünür.
-      this.visibleCount = Math.min(99, Math.max(1, parseInt(localStorage.getItem(VIS_KEY)) || CONFIG.VISIBLE_COUNT));
-      this.showAll = localStorage.getItem(ALL_KEY) === "1"; this.classLevel = 0; this.levelBusy = false; this.themeMode = "auto"; this.decorEls = [];
-      this.pickedIds = new Set();   // 'Sırayla Rastgele' modunda bu turda seçilmiş öğrenciler
+      // Sıra Eşiği: ekranda görünecek en yüksek puan basamağı sayısı. "Tümü" açıksa sayıdan bağımsız herkes görünür.
+      this.threshold = 10; this.visibleCount = CONFIG.VISIBLE_COUNT; this.showAll = false; this.themeMode = "auto";
+      this.classLevel = 0; this.levelBusy = false; this.decorEls = [];
+      this.fishFilter = false; this.filterQ = "";      // balık filtresi: açıkken arama ekrandaki balıklara da uygulanır (kaydedilmez)
       this.emptyEl = Object.assign(document.createElement("div"), { className: "roster-empty", textContent: "Sonuç bulunamadı" });
       this.activeFishes = []; this.sort = { key: "none", asc: true }; this._sortT = 0;
       this.W = window.innerWidth; this.H = window.innerHeight; this.lastT = 0;
@@ -884,8 +893,14 @@
       if (savedTitle) this.els.title.innerText = savedTitle;
       if (localStorage.getItem(CONFIG.COLLAPSED_KEY) === "1") this.els.panel.classList.add("collapsed");
 
-      this.themeMode = localStorage.getItem(CONFIG.THEME_KEY2) || "auto";
-      this.applyTheme();
+      let code = localStorage.getItem(SET_KEY);
+      if (!code) {                                     // eski ayrı anahtarlardan tek koda geçiş (bir kez)
+        const old = ["aquarium_visible_count_v1", "aquarium_show_all_v1", "aquarium_theme_v2", "aquarium_threshold_v1", "aquarium_sort_v1"].map(k => localStorage.getItem(k));
+        let srt = 0; try { const o = JSON.parse(old[4]); srt = Math.max(0, SORTS.findIndex(x => x[0] === o.key && x[1] === !!o.asc)); } catch (e) {}
+        code = [old[1] === "1" ? 0 : old[0] || CONFIG.VISIBLE_COUNT, Math.max(0, THEMES.indexOf(old[2])), 0, old[3] || 10, srt].join("-");
+        ["aquarium_visible_count_v1", "aquarium_show_all_v1", "aquarium_theme_v2", "aquarium_threshold_v1", "aquarium_sort_v1"].forEach(k => localStorage.removeItem(k));
+      }
+      this.applySettings(code, true);
       // Gün/gece yalnızca tam saatlerde değişiyor (12:00 ve 13:00), bu yüzden saat başında bir kez bakmak yeterli.
       // Eskiden 30 saniyede bir kontrol ediliyordu; saatte 120 boşuna kontrol demekti.
       const scheduleThemeCheck = () => {
@@ -902,25 +917,21 @@
       this.decorEls = DECOR_IDS.map(id => document.getElementById(id));
       // Sıra Eşiği + Tümü
       const visIn = document.getElementById("vis-input"), visAll = document.getElementById("vis-all");
-      visIn.value = this.visibleCount; visAll.checked = this.showAll; visIn.disabled = this.showAll;
       visIn.addEventListener("change", () => {
         const v = Math.min(99, Math.max(1, parseInt(visIn.value) || this.visibleCount));
         visIn.value = this.visibleCount = v;
-        localStorage.setItem(VIS_KEY, v);
-        this.syncVisibility();
+        this.saveSettings(); this.syncVisibility();
       });
       visIn.addEventListener("keydown", e => { if (e.key === "Enter") visIn.blur(); });
       visAll.addEventListener("change", () => {
         this.showAll = visAll.checked; visIn.disabled = this.showAll;
-        localStorage.setItem(ALL_KEY, this.showAll ? "1" : "0");
-        this.syncVisibility();
+        this.saveSettings(); this.syncVisibility();
         visAll.blur();                       // odak kutuda kalırsa klavye kısayolları (H, F, R...) çalışmaz
       });
-      this.els.thrInput.value = this.threshold;
       this.els.thrInput.addEventListener("change", () => {
         const v = Math.min(999, Math.max(1, parseInt(this.els.thrInput.value) || this.threshold));
         this.threshold = v; this.els.thrInput.value = v;
-        localStorage.setItem(THR_KEY, v);
+        this.saveSettings();
         this.updateClassLevel(true);                       // eşik değişince fanfar çalmadan yeniden hesapla
       });
 
@@ -954,11 +965,6 @@
       this.els.search.addEventListener("input", () => this.applyFilter());
       this.els.queueSection.insertAdjacentElement("afterend", this.emptyEl);
       if (localStorage.getItem(QUEUE_KEY) === "1") this.els.queueSection.classList.add("collapsed");
-      try {
-        const sv = JSON.parse(localStorage.getItem(SORT_KEY));
-        if (sv && ["none", "name", "score"].includes(sv.key)) this.sort = { key: sv.key, asc: !!sv.asc };
-      } catch (e) { /* varsayılan sıralama */ }
-      this.renderSortBar();
       this.initTabs(); this.renderTabs();
 
       this.initEnvironment();
@@ -1011,19 +1017,19 @@
     rowsToFish(rows) {
       return rows.map(f => ({
         id: String(f.id), name: String(f.name ?? ""), score: Number(f.score) || 0,
-        eatenScore: Number(f.score) || 0, spriteIndex: f.spriteIndex ?? 0,
+        eatenScore: Number(f.score) || 0, spriteIndex: f.spriteIndex ?? 0, picked: !!f.picked,
         ...this.spawnState(), vis: false, foodQueue: [], rankType: null
       }));
     }
-    liveRows() { return this.fishes.map(({ id, name, score, spriteIndex }) => ({ id, name, score, spriteIndex })); }
+    liveRows() { return this.fishes.map(({ id, name, score, spriteIndex, picked }) => ({ id, name, score, spriteIndex, picked })); }
     classData() { return this.classes.map(c => ({ name: c.name, rows: c.name === this.curClass ? this.liveRows() : c.rows })); }
     totalFish() { return this.classData().reduce((t, c) => t + c.rows.length, 0); }
     loadCurrent() {                                  // açık sınıfı ekrana yükler (puan/seviye jeneriği tetiklemez)
       const c = this.classes.find(c => c.name === this.curClass);
       this.fishes = this.rowsToFish(c.rows);
       this.fishById = new Map(this.fishes.map(f => [f.id, f]));
-      this.pickedIds.clear(); this.classLevel = 0;
-      this.els.search.value = "";
+      this.classLevel = 0;
+      this.els.search.value = ""; this.filterQ = "";
       this.renderAll(); this.renderTabs();
     }
     // Eşitleme: tüm sınıf listesini topluca değiştirir
@@ -1224,10 +1230,35 @@
     // Saat bazlı gün döngüsü: 12:00'ye kadar sabah, 12:00-13:00 akşam, 13:00'ten sonra gece
     timePhase() { const h = new Date().getHours(); return h < 12 ? "morning" : h < 13 ? "evening" : "night"; }
     toggleTheme() {
-      const modes = ["auto", "morning", "evening", "night"];
-      this.themeMode = modes[(modes.indexOf(this.themeMode) + 1) % modes.length];
-      localStorage.setItem(CONFIG.THEME_KEY2, this.themeMode);
-      this.applyTheme();
+      this.themeMode = THEMES[(THEMES.indexOf(this.themeMode) + 1) % THEMES.length];
+      this.applyTheme(); this.saveSettings();
+    }
+
+    /* --- öğretmen ayarları: tek kod (ör. "5-0-0-10-3"), hesapta internete de kaydedilir --- */
+    settingsCode() {
+      const srt = Math.max(0, SORTS.findIndex(x => x[0] === this.sort.key && (x[0] === "none" || x[1] === this.sort.asc)));
+      return [this.showAll ? 0 : this.visibleCount, THEMES.indexOf(this.themeMode), this.clickLocked ? 1 : 0, this.threshold, srt].join("-");
+    }
+    saveSettings() {
+      localStorage.setItem(SET_KEY, this.settingsCode());
+      this.saveGame();                                 // hesap açıksa değişiklik internete de gider
+    }
+    // Kodu uygular; eksik/bozuk sayılar o ayarı değiştirmez. first: açılışta (ekran henüz kurulmadı)
+    applySettings(code, first = false) {
+      const n = String(code || "").split("-").map(x => parseInt(x, 10));
+      const ok = (i, lo, hi) => Number.isInteger(n[i]) && n[i] >= lo && n[i] <= hi;
+      if (ok(0, 0, 99)) { this.showAll = n[0] === 0; if (n[0]) this.visibleCount = n[0]; }
+      if (ok(1, 0, 3)) this.themeMode = THEMES[n[1]];
+      if (ok(2, 0, 1)) this.setLock(n[2] === 1);
+      if (ok(3, 1, 999)) this.threshold = n[3];
+      if (ok(4, 0, 4)) this.sort = { key: SORTS[n[4]][0], asc: SORTS[n[4]][1] };
+      const visIn = document.getElementById("vis-input"), visAll = document.getElementById("vis-all");
+      visIn.value = this.visibleCount; visAll.checked = this.showAll; visIn.disabled = this.showAll;
+      this.els.thrInput.value = this.threshold;
+      this.applyTheme(); this.renderSortBar();
+      localStorage.setItem(SET_KEY, this.settingsCode());
+      if (first) return;
+      this.syncVisibility(); this.sortLists(); this.updateClassLevel(true);
     }
     applyTheme() {
       const auto = this.themeMode === "auto", phase = auto ? this.timePhase() : this.themeMode;
@@ -1277,14 +1308,17 @@
     }
 
     pickRandomStudent(mode = "random") {
-      if (this.isPicking || this.fishes.length === 0) return;
+      // Adaylar: balık filtresi açıksa yalnızca aramaya uyanlar. Sıralı modda bu turda seçilmiş (kalın) olanlar atlanır.
+      const base = this.fishes.filter(f => this.inFilter(f));
+      if (this.isPicking || !base.length) return;
       this.isPicking = true;
-
-      // Adaylar: normal modda herkes; sıralı modda bu turda henüz seçilmemişler
-      let candidates = this.fishes;
+      let candidates = base;
       if (mode === "sequential") {
-        candidates = this.fishes.filter(f => !this.pickedIds.has(f.id));
-        if (!candidates.length) { this.pickedIds.clear(); candidates = this.fishes; }   // herkes seçildi → yeni tur
+        candidates = base.filter(f => !f.picked);
+        if (!candidates.length) {                    // herkes seçildi → yeni tur: kalınlıklar temizlenir
+          base.forEach(f => { f.picked = false; f.rowEl?.classList.remove("picked"); });
+          candidates = base; this.saveGame();
+        }
       }
       const n = candidates.length, targetIdx = Math.floor(Math.random() * n), winner = candidates[targetIdx];
       const totalSteps = n * 3 + targetIdx;
@@ -1314,8 +1348,8 @@
 
           let info = "";
           if (mode === "sequential") {
-            this.pickedIds.add(winner.id);
-            const left = this.fishes.filter(f => !this.pickedIds.has(f.id)).length;
+            winner.picked = true; winner.rowEl?.classList.add("picked"); this.saveGame();
+            const left = base.filter(f => !f.picked).length;
             info = left > 0 ? `(Kalan: ${left})` : "(Tur bitti, sonraki seçimde liste yenilenir)";
           }
           this.els.pickerName.innerText = winner.name;
@@ -1332,12 +1366,20 @@
       runCarousel();
     }
 
-    /* --- arama: sadece listeyi süzer, balıklara dokunmaz --- */
+    /* --- arama: listeyi süzer; balık filtresi (🐟) açıksa ekrandaki balıklara da uygulanır --- */
     static fold(str) {
       return str.toLocaleLowerCase("tr").replace(/ç/g, "c").replace(/ğ/g, "g").replace(/ı/g, "i").replace(/ö/g, "o").replace(/ş/g, "s").replace(/ü/g, "u");
     }
+    inFilter(f) { return !this.fishFilter || !this.filterQ || (f.searchKey ??= AquariumApp.fold(f.name)).includes(this.filterQ); }
+    toggleFishFilter() {
+      this.fishFilter = !this.fishFilter;
+      document.getElementById("fish-filter").classList.toggle("on", this.fishFilter);
+      this.syncVisibility(); this.updateLeaderHighlights();
+    }
     applyFilter() {
       const q = AquariumApp.fold(this.els.search.value.trim());
+      const changed = q !== this.filterQ; this.filterQ = q;
+      if (changed && this.fishFilter) { this.syncVisibility(); this.updateLeaderHighlights(); }
       let shown = 0;
       for (const f of this.fishes) {
         if (!f.rowEl) continue;
@@ -1426,8 +1468,9 @@
     toggleAudio() { this.audio.toggle(); }
     toggleRoster(e) { if (e?.target?.id === "class-title") return; localStorage.setItem(CONFIG.COLLAPSED_KEY, this.els.panel.classList.toggle("collapsed") ? "1" : "0"); }
     toggleQueue() { localStorage.setItem(QUEUE_KEY, this.els.queueSection.classList.toggle("collapsed") ? "1" : "0"); }
-    toggleClickLock() {
-      this.clickLocked = !this.clickLocked;
+    toggleClickLock() { this.setLock(!this.clickLocked); this.saveSettings(); }
+    setLock(v) {
+      this.clickLocked = v;
       this.els.lockBtn.textContent = this.clickLocked ? "🚫" : "🖱️";
       this.els.lockBtn.title = this.clickLocked
         ? "Yanlışlıkla Yem Verme Koruması Açık: Balıklara tıklama devre dışı — açmak için tıklayın"
@@ -1510,11 +1553,12 @@
     // Görünürlük KİŞİ sayısına değil PUAN BASAMAĞINA göre: en yüksek VISIBLE_COUNT farklı puan değeri ekranda.
     // Örn. 5 kişi 5p, 4 kişi 4p, 3 kişi 3p, 2 kişi 2p, 10 kişi 1p → 5 basamak var, herkes görünür.
     recomputeVis() {
-      const tiers = [...new Set(this.fishes.map(f => f.score).filter(sc => sc > 0))].sort((a, b) => b - a);
+      const pool = this.fishes.filter(f => this.inFilter(f));   // balık filtresi açıksa yalnızca aramaya uyanlar
+      const tiers = [...new Set(pool.map(f => f.score).filter(sc => sc > 0))].sort((a, b) => b - a);
       const cutoff = tiers.length ? tiers[Math.min(this.visibleCount, tiers.length) - 1] : Infinity;
       const entered = [], left = [];
       for (const f of this.fishes) {
-        const want = this.showAll || (f.score > 0 && f.score >= cutoff);   // "Tümü" açıksa puanı 0 olanlar dahil herkes
+        const want = this.inFilter(f) && (this.showAll || (f.score > 0 && f.score >= cutoff));   // "Tümü" açıksa puanı 0 olanlar dahil herkes
         if (want && !f.vis) entered.push(f); else if (!want && f.vis) left.push(f);
         f.vis = want;
       }
@@ -1596,8 +1640,7 @@
       if (s.key !== key) this.sort = { key, asc: first };
       else if (s.asc === first) this.sort = { key, asc: !first };
       else this.sort = { key: "none", asc: true };   // 3. tıklama: varsayılan (ekleniş) sırası
-      localStorage.setItem(SORT_KEY, JSON.stringify(this.sort));
-      this.renderSortBar(); this.sortLists();
+      this.renderSortBar(); this.sortLists(); this.saveSettings();
     }
     renderSortBar() {
       const { key, asc } = this.sort;
@@ -1710,6 +1753,7 @@
       fish.rowEl = li; fish.thumbEl = li.querySelector(".roster-thumb"); fish.scoreEl = li.querySelector(".score-badge");
       fish.thumbEl.src = src;
       const nm = li.querySelector(".roster-name"); nm.textContent = fish.name; nm.title = fish.name;
+      li.classList.toggle("picked", !!fish.picked);
       fish.scoreEl.textContent = fish.score;
       (fish.vis ? this.els.rosterList : this.els.queueList).appendChild(li);
     }
@@ -1741,7 +1785,7 @@
 
     updateLeaderHighlights() {
       // İlk 3 puan basamağı -> madalya. Her balık için indexOf taramak yerine tek seferlik harita.
-      const valid = [...new Set(this.fishes.map(f => this.getFishScore(f)))].filter(s => s > 0).sort((a, b) => b - a);
+      const valid = [...new Set(this.fishes.filter(f => this.inFilter(f)).map(f => this.getFishScore(f)))].filter(s => s > 0).sort((a, b) => b - a);
       const rankOf = new Map();
       for (let i = 0; i < 3 && i < valid.length; i++) rankOf.set(valid[i], RANK_ORDER[i]);
       for (const f of this.fishes) {
@@ -2120,13 +2164,13 @@
 </script>
 <script>(() => {
   // ===== Hesap ve Kayıt: sınıf listesi ortak Google Tablosu'ndaki kişisel sekmede tutulur =====
-  // Esas olan internetteki kayıttır. Giriş yapılınca ve sayfa açılınca internetteki liste yüklenir;
+  // Esas olan internetteki kayıttır. Giriş yapılınca ve sayfa açılınca internetteki liste ve ayarlar yüklenir;
   // buradaki her değişiklik birkaç saniye içinde internete yazılır. Kullanıcıya "hangisi geçerli" diye sorulmaz.
+  // Öğrenci satırı: [ad, puan, model, sınıf, seçildi]. "Seçildi" (Sırayla Rastgele) tabloda kalın yazıyla tutulur.
   const URL_ = "https://script.google.com/macros/s/AKfycbzRhDLgNIN2EJbScOp2QISiehRLO0ThUsSdRk6NQPcMoImPS7O8sAFgp_GkgAKwskpo/exec";
   const K_CFG = "aquarium_sheet_v1", K_BASE = "aquarium_sheet_base_v1", K_GUEST = "aquarium_sheet_guest_v1";
   const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const lsSet = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) {} };
-  ["aquarium_local_t_v1", "aquarium_sheet_dirty_v1"].forEach(k => lsSet(k, null));     // eski sürümlerden kalan anahtarlar
 
   let cfg = null;
   try { cfg = JSON.parse(lsGet(K_CFG)); } catch (e) {}
@@ -2139,18 +2183,18 @@
   const norm = a => String(a || "").trim().toLowerCase().replace(/[\[\]*?:\/\\]/g, "").slice(0, 50);
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const hm = t => new Date(t).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
-  // Satır: [öğrenci, puan, model, sınıf]. Eski (sınıfsız) kayıtlar ilk sınıfa sayılır
-  const normRow = r => [String(r[0]).trim(), Number(r[1]) || 0, Math.max(0, Math.floor(Number(r[2]) || 0)), String(r[3] ?? "").trim()];
+  const normRow = r => [String(r[0]).trim(), Number(r[1]) || 0, Math.max(0, Math.floor(Number(r[2]) || 0)), String(r[3] ?? "").trim(), r[4] ? 1 : 0];
   // İki taraf da aynı biçime getirilir: aynı liste her zaman aynı imzayı verir
-  const pack = (sinif, raw) => {
+  const pack = (sinif, raw, ayar) => {
     let names = (Array.isArray(sinif) ? sinif : []).map(x => String(x).trim()).filter(Boolean);
     const firstName = names[0] || "Sınıf 1";
-    const rows = (raw || []).map(normRow).filter(r => r[0]).map(r => [r[0], r[1], r[2], r[3] || firstName]);
+    const rows = (raw || []).map(normRow).filter(r => r[0]).map(r => [r[0], r[1], r[2], r[3] || firstName, r[4]]);
     for (const r of rows) if (!names.includes(r[3])) names.push(r[3]);
     if (!names.length) names = ["Sınıf 1"];
-    return { rows, names, sig: JSON.stringify({ c: names, r: rows }) };
+    ayar = String(ayar || "");
+    return { rows, names, ayar, sig: JSON.stringify({ c: names, r: rows, a: ayar }) };
   };
-  const local = () => pack(app.classes.map(c => c.name), app.classData().flatMap(c => c.rows.map(f => [f.name, f.score, f.spriteIndex, c.name])));
+  const local = () => pack(app.classes.map(c => c.name), app.classData().flatMap(c => c.rows.map(f => [f.name, f.score, f.spriteIndex, c.name, f.picked])), app.settingsCode());
   const unsynced = () => !!cfg && local().sig !== base;
   const setBase = s => { base = s; lsSet(K_BASE, s); };
 
@@ -2159,7 +2203,7 @@
     body: JSON.stringify(o), signal: timeout(30000) })).json();
   const read = (ad, pin, tok) => post({ islem: "oku", ad, pin, tok });     // tok verilmezse yalnızca PIN doğrulanır
   // İsmin başına ' konur: Google Tablosu "007", "1/2", "=..." gibi isimleri sayıya/tarihe/formüle çevirmesin
-  const write = (L) => post({ islem: "yaz", ad: cfg.ad, pin: cfg.pin, tok: cfg.tok || "", sinif: L.names, rows: L.rows.map(([n, s, m, c]) => ["'" + n, s, m, "'" + c]) });
+  const write = L => post({ islem: "yaz", ad: cfg.ad, pin: cfg.pin, tok: cfg.tok || "", sinif: L.names, ayar: L.ayar, rows: L.rows.map(([n, s, m, c, p]) => ["'" + n, s, m, "'" + c, p]) });
   const errTxt = r => ({ ad: "Bu ad kullanılamaz.", pin: "PIN yanlış (4 rakam olmalı).", yok: "Bu adda hesap yok (sekme silinmiş olabilir).", var: "Bu ad zaten var.", oturum: "Bu hesapla başka yerde giriş yapıldı." }[r && r.hata]
     || "Beklenmedik cevap: " + ((r && r.hata) || "?"));
   const netTxt = e => e && e.name === "AbortError" ? "Zaman aşımı (Google 30 sn içinde cevap vermedi)" : "Bağlanılamadı (internet yok ya da ağ Google'ı engelliyor)";
@@ -2286,14 +2330,17 @@
   }
 
   // ---- Veri aktarımı ----
-  // İnternetteki listeyi uygulamaya yükler
+  // İnternetteki listeyi ve ayarları uygulamaya yükler. Tabloda ayar kodu yoksa (eski hesap) buradaki ayarlar kalır
+  // ve bir sonraki eşitlemede tabloya yazılır.
   function apply(P) {
     applying = true;
     try {
       let id = Date.now();
-      app.setClasses(P.names.map(n => ({ name: n, rows: P.rows.filter(r => r[3] === n).map(([name, score, spriteIndex]) => ({ id: String(id++), name, score, spriteIndex })) })), app.curClass);
+      app.setClasses(P.names.map(n => ({ name: n, rows: P.rows.filter(r => r[3] === n).map(([name, score, spriteIndex, , picked]) => ({ id: String(id++), name, score, spriteIndex, picked: !!picked })) })), app.curClass);
+      if (P.ayar) app.applySettings(P.ayar);
     } finally { applying = false; }
-    lastSig = local().sig; setBase(lastSig);
+    lastSig = local().sig; setBase(P.ayar ? lastSig : P.sig);
+    if (!P.ayar) schedule();
   }
   // Buradaki listeyi internete yazar
   async function push() {
@@ -2317,7 +2364,7 @@
       const r = await read(cfg.ad, cfg.pin, cfg.tok || "");
       if (!r.ok) return fail(r);
       lastSync = Date.now();
-      const P = pack(r.sinif, r.rows), L = local();
+      const P = pack(r.sinif, r.rows, r.ayar), L = local();
       const wasFirst = first; first = false;
       if (P.sig === L.sig) { setBase(P.sig); return setStatus("ok", undefined, wasFirst ? "İnternetteki kayıtla aynı" : ""); }
       if (wasFirst || L.sig === base) { apply(P); return setStatus("ok", undefined, "İnternetteki kayıt yüklendi"); }
@@ -2330,7 +2377,7 @@
   // Ad + PIN doğru (r: oku cevabı): giriş yap ve internetteki listeyi yükle.
   // Hesap boşsa ve burada öğrenci varsa buradaki liste hesaba kaydedilir.
   async function join(r) {
-    const P = pack(r.sinif, r.rows);
+    const P = pack(r.sinif, r.rows, r.ayar);
     const en = await enter(ctx.ad, ctx.pin);
     if (!en.ok) return view("start", errTxt(en), "sh-err");
     lastSync = Date.now();
@@ -2423,7 +2470,6 @@
   }
   paint();
   if (app.ready) hook(); else window.addEventListener("aquarium-ready", hook, { once: true });
-  window.__sheet = { state: () => ({ cfg, status, base, unsynced: !!app.ready && unsynced(), lastErr }), sync };
 })();
 </script>
 </body>
