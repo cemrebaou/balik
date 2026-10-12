@@ -2563,6 +2563,10 @@
   #battle .x { position: absolute; top: 16px; right: 18px; z-index: 7; padding: 10px 18px; border-radius: 999px; border: 1px solid rgba(255,255,255,.3);
     background: rgba(8,25,40,.75); color: #fff; font: inherit; font-weight: 800; font-size: 15px; cursor: pointer; opacity: .8; backdrop-filter: blur(4px); }
   #battle .x:hover { opacity: 1; background: #0ea5e9; }
+  #battle .spd { position: absolute; top: 16px; right: 200px; z-index: 7; padding: 10px 16px; border-radius: 999px; border: 1px solid rgba(255,255,255,.3);
+    background: rgba(8,25,40,.75); color: #fff; font: inherit; font-weight: 800; font-size: 15px; cursor: pointer; opacity: .8; min-width: 78px; }
+  #battle .spd:hover { opacity: 1; }
+  #battle .spd.on { background: #f59e0b; border-color: #fcd34d; color: #3b2300; opacity: 1; }
   #battle .banner { position: absolute; left: 0; right: 0; top: 38%; text-align: center; z-index: 4; pointer-events: none;
     font-size: clamp(32px, 6vw, 84px); font-weight: 900; letter-spacing: 3px; color: #ffd9de;
     text-shadow: 0 0 24px rgba(255,40,70,.8), 0 4px 0 #5a0012; opacity: 0; transform: scale(.85); transition: opacity .6s, transform .6s; }
@@ -2899,8 +2903,14 @@ fill="none" stroke="#2a0510" stroke-width="4" opacity=".55" stroke-linecap="roun
           </svg></div></div></div>
       <canvas id="bt-fw"></canvas>
       <div id="bt-podium"></div>
+      <button class="spd" title="Saldırı hızı: balıkların saldırı denemesi arasındaki süre (1x = 1 sn, 2x = 0,5 sn, 4x = 0,25 sn)">⏩ 1x</button>
       <button class="x" title="Savaşı bitir ve akvaryuma dön (Esc)">🐠 Akvaryuma Dön</button>`;
     root.querySelector(".x").onclick = () => end();
+    const spd = root.querySelector(".spd");
+    spd.onclick = () => {
+      B.speed = B.speed === 1 ? 2 : B.speed === 2 ? 4 : 1;
+      spd.textContent = "⏩ " + B.speed + "x"; spd.classList.toggle("on", B.speed > 1);
+    };
     for (let i = 0; i < 26; i++) {
       const d = document.createElement("div"); d.className = "dust"; const s = 2 + Math.random() * 4;
       Object.assign(d.style, { width: s + "px", height: s + "px", left: Math.random() * 100 + "%", top: 100 + Math.random() * 10 + "%",
@@ -2910,7 +2920,7 @@ fill="none" stroke="#2a0510" stroke-width="4" opacity=".55" stroke-linecap="roun
     const $ = id => root.querySelector("#" + id);
     const total = list.reduce((t, f) => t + f.score, 0);
     B = { root, $, maxHp: total * 5, hp: total * 5, t: 0, phase: "intro", phaseT: 0, last: 0,
-          shake: 0, flashV: 0, squint: 0, hurt: 0, marks: [], fx: [], stats: new Map(), fwParts: [], fwNext: 0 };
+          speed: 1, shake: 0, flashV: 0, squint: 0, hurt: 0, marks: [], fx: [], stats: new Map(), fwParts: [], fwNext: 0 };
     setupOctopus();
     setupFish(list);
     Snd.start();
@@ -3089,8 +3099,9 @@ fill="none" stroke="#2a0510" stroke-width="4" opacity=".55" stroke-linecap="roun
       F.y = F.home[1] + Math.sin(F.t * 2 + F.home[0]) * 6;
       // Her saniye bir saldırı denemesi: şans puan% ile 2×puan% arasında, iki sınır da en fazla %100 (ör. 18 → %18–%36)
       F.roll = (F.roll || 0) + dt;
-      if (B.phase === "fight" && F.roll >= 1) {
-        F.roll -= 1;
+      const every = 1 / B.speed;                                   // 1x: 1 sn, 2x: 0,5 sn, 4x: 0,25 sn
+      if (B.phase === "fight" && F.roll >= every) {
+        F.roll -= every;
         const sc = F.st.score, lo = Math.min(sc, 100), hi = Math.min(sc * 2, 100);
         const chance = (lo + Math.random() * (hi - lo)) / 100;                       // ör. 70 puan → %70–%100
         if (Math.random() < chance) { F.state = "go"; F.t = 0; F.dur = 2 + Math.random() * .9; F.S = [F.x, F.y]; F.T = attackTarget(); }
