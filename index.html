@@ -2619,6 +2619,19 @@
   #bt-podium .s3 .block { height: 75px; background: linear-gradient(180deg, #f0a46a, #9a5524); }
   #bt-podium button { margin-top: 26px; padding: 12px 26px; border-radius: 999px; border: none; font: inherit; font-weight: 800; font-size: 16px;
     background: #0ea5e9; color: #fff; cursor: pointer; box-shadow: 0 6px 18px rgba(14,165,233,.45); }
+  #bt-podium .tbl { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(0,6,14,.7); z-index: 2; }
+  #bt-podium .tbl.on { display: flex; }
+  #bt-podium .card { background: linear-gradient(180deg, #13283d, #0a1726); border: 1px solid rgba(255,255,255,.18); border-radius: 16px; padding: 18px 20px;
+    max-height: 80vh; width: min(560px, 90vw); display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,.6); color: #fff; }
+  #bt-podium .card h3 { margin: 0 0 10px; font-size: 22px; }
+  #bt-podium .card table { width: 100%; border-collapse: collapse; font-size: 15px; display: block; overflow-y: auto; }
+  #bt-podium .card thead, #bt-podium .card tbody { display: table; width: 100%; table-layout: fixed; }
+  #bt-podium .card th { text-align: left; font-size: 12px; opacity: .7; padding: 4px 6px; }
+  #bt-podium .card td { padding: 5px 6px; border-top: 1px solid rgba(255,255,255,.08); }
+  #bt-podium .card th:nth-child(1), #bt-podium .card td:nth-child(1) { width: 42px; } #bt-podium .card th:nth-child(2), #bt-podium .card td:nth-child(2) { width: 52px; }
+  #bt-podium .card th:nth-child(4), #bt-podium .card td:nth-child(4), #bt-podium .card th:nth-child(5), #bt-podium .card td:nth-child(5) { width: 70px; text-align: right; }
+  #bt-podium .card td img { width: 40px; height: 30px; object-fit: contain; animation: none; filter: none; }
+  #bt-podium .card button { align-self: center; margin-top: 14px; }
   #bt-fw { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 5; pointer-events: none; }
   #battle .msg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 22px; font-weight: 700; z-index: 6; text-align: center; padding: 20px; }
   `;
@@ -2703,6 +2716,8 @@
       if (s % 64 === 0) this.noise(t, 1.2, .12, "highpass", 3000);                                // zil
       if (bar === 3 && i === 8) this.tone("sawtooth", this.hz(root + 24), t, sd * 7, .03, 0, 2500);  // gerilim notası
     },
+    pause() { if (!this.ctx) return; clearInterval(this.timer); this.timer = 0; this.out.gain.setTargetAtTime(0, this.ctx.currentTime, .05); },
+    resume() { if (!this.ctx || this.timer) return; this.next = this.ctx.currentTime + .1; this.timer = setInterval(() => this.sched(), 50); },
     hit() { if (!this.ctx || !this.on()) return; const t = this.ctx.currentTime; this.tone("sine", 180, t, .2, .55, 50); this.noise(t, .09, .3, "lowpass", 1400); },
     whoosh() { if (!this.ctx || !this.on()) return; const t = this.ctx.currentTime; this.noise(t, .3, .3, "bandpass", 350, 2600); },
     smack() { if (!this.ctx || !this.on()) return; const t = this.ctx.currentTime; this.noise(t, .12, .45, "highpass", 1200); this.tone("square", 300, t, .1, .08, 120); },
@@ -2913,6 +2928,11 @@ fill="none" stroke="#2a0510" stroke-width="4" opacity=".55" stroke-linecap="roun
     r.classList.remove("show");
     setTimeout(() => { r.remove(); document.body.classList.remove("battle-on"); }, 600);
   }
+  // Sekme/uygulama arka plana atılınca müzik de durur, dönünce devam eder
+  document.addEventListener("visibilitychange", () => {
+    if (!B || !B.oct) return;
+    if (document.hidden) Snd.pause(); else if (B.phase === "intro" || B.phase === "fight") Snd.resume();
+  });
   document.addEventListener("keydown", e => { if (B && e.key === "Escape") { e.stopPropagation(); end(); } }, true);
 
   // ---------------- Ahtapot ----------------
@@ -3067,11 +3087,12 @@ fill="none" stroke="#2a0510" stroke-width="4" opacity=".55" stroke-linecap="roun
       if (p >= 1) { F.state = "wait"; F.t = 0; F.dur = 1e9; }
     } else if (F.state === "wait") {
       F.y = F.home[1] + Math.sin(F.t * 2 + F.home[0]) * 6;
-      // Her saniye bir saldırı denemesi: şans, puanın %1 katı ile 2 katı arasında (ör. 18 puan → %18–%36)
+      // Her saniye bir saldırı denemesi: şans puan% ile 2×puan% arasında, iki sınır da en fazla %100 (ör. 18 → %18–%36)
       F.roll = (F.roll || 0) + dt;
       if (B.phase === "fight" && F.roll >= 1) {
         F.roll -= 1;
-        const sc = F.st.score, chance = Math.min(100, sc + Math.random() * sc) / 100;
+        const sc = F.st.score, lo = Math.min(sc, 100), hi = Math.min(sc * 2, 100);
+        const chance = (lo + Math.random() * (hi - lo)) / 100;                       // ör. 70 puan → %70–%100
         if (Math.random() < chance) { F.state = "go"; F.t = 0; F.dur = 2 + Math.random() * .9; F.S = [F.x, F.y]; F.T = attackTarget(); }
       }
     } else if (F.state === "go") {                              // derinliğe doğru yavaş gider, küçülür
@@ -3133,7 +3154,7 @@ fill="none" stroke="#2a0510" stroke-width="4" opacity=".55" stroke-linecap="roun
 
   function counter(F) {
     const [bx] = toOct(F.x, F.y), left = bx < 500;
-    const free = B.arms.filter(A => !A.reach && (A.x < 500) === left);
+    const free = B.arms.filter(A => !A.reach && A.cutT === undefined && (A.x < 500) === left);
     if (!free.length) return;
     const A = free[Math.floor(Math.random() * free.length)];
     A.reach = { F, t: 0, hit: false }; A.bendSign = bx < A.x ? 1 : -1;
@@ -3156,8 +3177,33 @@ fill="none" stroke="#2a0510" stroke-width="4" opacity=".55" stroke-linecap="roun
   }
 
   // ---------------- Can barı ----------------
+  // Kol kopması: can %80'e inince 7 kol, %60'ta 6, %50'de 5, %40'ta 4, %30'da 3, %20'de 2, %10'da 1 kol kalır
+  const CUT_AT = [.8, .6, .5, .4, .3, .2, .1], CUT_ORDER = [2, 3, 0, 1, 4, 5, 6];
+  function cutArms() {
+    const r = B.hp / B.maxHp, need = CUT_AT.filter(x => r <= x).length;
+    B.cut = B.cut || 0;
+    while (B.cut < need) {
+      const A = B.arms[CUT_ORDER[B.cut]]; B.cut++;
+      if (A.reach) { A.reach = null; B.layers[A.layer].appendChild(A.g); }
+      A.cutT = 0; A.fallDir = A.x < 500 ? -1 : 1;
+      const [rx, ry] = fromOct(A.x, A.y);
+      splash(rx, ry, "#2a0618"); splash(rx, ry, "#5a1030");                 // mürekkep/kan yerine koyu mor bulut
+      B.hurt = 1; B.shake = .5; Snd.smack(); Snd.hit();
+    }
+  }
+  function updateCut(A, dt) {
+    if (A.cutT === undefined) return true;
+    A.cutT += dt;
+    const p = Math.min(1, A.cutT / 2.2), fx = A.fallDir * 140 * p, fy = 420 * p * p, rot = A.fallDir * 70 * p;
+    A.g.setAttribute("transform", `translate(${fx.toFixed(1)} ${fy.toFixed(1)}) rotate(${rot.toFixed(1)} ${A.x} ${A.y})`);
+    A.g.setAttribute("opacity", (1 - p).toFixed(2));
+    if (p >= 1) { A.g.style.display = "none"; return false; }
+    return true;
+  }
+
   function updateHp(first) {
     const r = B.hp / B.maxHp, hpEl = B.$("bt-hp");
+    if (!first) cutArms();
     hpEl.querySelector(".fill").style.width = (r * 100) + "%";
     hpEl.querySelector(".ghost").style.width = (r * 100) + "%";
     hpEl.querySelector(".num").textContent = `${B.hp} / ${B.maxHp}`;
@@ -3183,12 +3229,25 @@ fill="none" stroke="#2a0510" stroke-width="4" opacity=".55" stroke-linecap="roun
     el.innerHTML = `<h2>🎉 Canavar Kaçtı! 🎉</h2><div class="row">${order.map(([[st, s], cls, n]) =>
       `<div class="p ${cls}"><img src="${app.getFishSprite(st)}" alt=""><div class="nm">${esc(st.name)}</div>
        <div class="dm">${s.dmg} hasar · ${s.hits} vuruş</div><div class="block">${n}</div></div>`).join("")}</div>
-      <button>🐠 Akvaryuma Dön</button>`;
-    el.querySelector("button").onclick = () => end();
+      <div style="display:flex;gap:12px"><button class="list">📋 Tüm Sınıf Sıralaması</button><button class="home">🐠 Akvaryuma Dön</button></div>
+      <div class="tbl"></div>`;
+    el.querySelector(".home").onclick = () => end();
+    el.querySelector(".list").onclick = () => showTable(el.querySelector(".tbl"));
     requestAnimationFrame(() => el.classList.add("on"));
     B.fish.forEach(F => F.g.setAttribute("opacity", 0));
     try { app.audio.playWinnerFanfare(); } catch (e) {}
     const cv = B.$("bt-fw"); cv.width = innerWidth; cv.height = innerHeight; B.fwCtx = cv.getContext("2d");
+  }
+
+  // Bütün sınıf: verdiği hasara göre sıralı (eşitse vuruş sayısına göre)
+  function showTable(box) {
+    const all = [...B.stats.entries()].sort((a, b) => b[1].dmg - a[1].dmg || b[1].hits - a[1].hits);
+    const medal = ["🥇", "🥈", "🥉"];
+    box.innerHTML = `<div class="card"><h3>📋 Savaş Sonuçları</h3><table><thead><tr><th>#</th><th></th><th>Öğrenci</th><th>Vuruş</th><th>Hasar</th></tr></thead><tbody>${
+      all.map(([st, s], i) => `<tr><td>${medal[i] || i + 1}</td><td><img src="${app.getFishSprite(st)}" alt=""></td><td>${esc(st.name)}</td><td>${s.hits}</td><td><b>${s.dmg}</b></td></tr>`).join("")
+    }</tbody></table><button>Kapat</button></div>`;
+    box.classList.add("on");
+    box.querySelector("button").onclick = () => box.classList.remove("on");
   }
 
   function fireworks(dt) {
@@ -3244,7 +3303,7 @@ fill="none" stroke="#2a0510" stroke-width="4" opacity=".55" stroke-linecap="roun
 
     if (B.phase !== "podium") B.fish.forEach(F => updateFish(F, dt));
     B.arms.forEach(A => updateReach(A, dt));
-    if (op > 0) B.arms.forEach(A => drawArm(A, t));
+    if (op > 0) B.arms.forEach(A => { if (updateCut(A, dt)) drawArm(A, t); });
 
     B.hurt = Math.max(0, B.hurt - dt * 1.6);
     B.flash.setAttribute("opacity", B.flashV.toFixed(2));
