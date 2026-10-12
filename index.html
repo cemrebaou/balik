@@ -2535,7 +2535,7 @@
 </script>
 <script>(() => {
   // ===== Ders Sonu Canavarı: öğrenci balıkları puanlarıyla dev ahtapota saldırır =====
-  // Can = sınıfın toplam puanı × 10. Her vuruş, balığın puanı kadar hasar verir. Canavar her zaman yenilir;
+  // Can = sınıfın toplam puanı × 5. Her vuruş, balığın puanı kadar hasar verir. Canavar her zaman yenilir;
   // can azaldıkça %50 boyuta kadar küçülür, sonunda kaçar ve en çok hasar verenler podyuma çıkar.
   const NS = "http://www.w3.org/2000/svg";
   const mk = (tag, attrs) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); return e; };
@@ -2560,9 +2560,9 @@
   #battle svg.stage { position: absolute; inset: 0; width: 100%; height: 100%; }
   #battle .dust { position: absolute; border-radius: 50%; background: rgba(170,210,255,.35); pointer-events: none; animation: btRise linear infinite; }
   @keyframes btRise { from { transform: translateY(0); opacity: 0; } 15% { opacity: 1; } to { transform: translateY(-110vh); opacity: 0; } }
-  #battle .x { position: absolute; top: 14px; right: 16px; z-index: 5; width: 38px; height: 38px; border-radius: 50%; border: 1px solid rgba(255,255,255,.25);
-    background: rgba(0,0,0,.35); color: #fff; font-size: 18px; cursor: pointer; opacity: .55; }
-  #battle .x:hover { opacity: 1; }
+  #battle .x { position: absolute; top: 16px; right: 18px; z-index: 7; padding: 10px 18px; border-radius: 999px; border: 1px solid rgba(255,255,255,.3);
+    background: rgba(8,25,40,.75); color: #fff; font: inherit; font-weight: 800; font-size: 15px; cursor: pointer; opacity: .8; backdrop-filter: blur(4px); }
+  #battle .x:hover { opacity: 1; background: #0ea5e9; }
   #battle .banner { position: absolute; left: 0; right: 0; top: 38%; text-align: center; z-index: 4; pointer-events: none;
     font-size: clamp(32px, 6vw, 84px); font-weight: 900; letter-spacing: 3px; color: #ffd9de;
     text-shadow: 0 0 24px rgba(255,40,70,.8), 0 4px 0 #5a0012; opacity: 0; transform: scale(.85); transition: opacity .6s, transform .6s; }
@@ -2635,6 +2635,80 @@
 
   let B = null;                                   // aktif savaşın durumu
 
+  // ---------------- Ses: kodla üretilen dramatik boss müziği + vuruş efektleri ----------------
+  // Re minör, 140 BPM, 4 ölçülük döngü (Dm – B♭ – C – A). Girişte yalnızca davul gümbürtüsü ve pad, sonra tam müzik.
+  // Akvaryumdaki ses düğmesi kapalıysa hiçbir ses çalmaz.
+  const Snd = {
+    on() { return app.audio && app.audio.enabled; },
+    start() {
+      try { app.audio.init(); } catch (e) { return; }
+      const ctx = this.ctx = app.audio.ctx;
+      this.out = ctx.createGain(); this.out.gain.value = 0; this.out.connect(ctx.destination);
+      const len = ctx.sampleRate, buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      this.noiseBuf = buf; this.step = 0; this.next = ctx.currentTime + .15; this.mode = "intro";
+      this.timer = setInterval(() => this.sched(), 50);
+    },
+    stop(fade = .4) {
+      if (!this.ctx) return;
+      clearInterval(this.timer);
+      const out = this.out; out.gain.setTargetAtTime(0, this.ctx.currentTime, fade / 3);
+      setTimeout(() => { try { out.disconnect(); } catch (e) {} }, fade * 1000 + 600);
+      this.ctx = null;
+    },
+    sched() {
+      const ctx = this.ctx; if (!ctx) return;
+      this.out.gain.setTargetAtTime(this.on() ? .5 : 0, ctx.currentTime, .05);
+      const sd = 60 / 140 / 4;
+      while (this.next < ctx.currentTime + .25) { this.playStep(this.step, this.next, sd); this.next += sd; this.step++; }
+    },
+    hz: m => 440 * Math.pow(2, (m - 69) / 12),
+    tone(type, f, t, dur, vol, f2, filt) {
+      const ctx = this.ctx, o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = type; o.frequency.setValueAtTime(f, t); if (f2) o.frequency.exponentialRampToValueAtTime(f2, t + dur);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + .008); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      let n = o; if (filt) { const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = filt; o.connect(lp); n = lp; }
+      n.connect(g); g.connect(this.out); o.start(t); o.stop(t + dur + .02);
+    },
+    noise(t, dur, vol, type, freq, freq2) {
+      const ctx = this.ctx, s = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+      s.buffer = this.noiseBuf; f.type = type; f.frequency.setValueAtTime(freq, t); if (freq2) f.frequency.exponentialRampToValueAtTime(freq2, t + dur);
+      g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      s.connect(f); f.connect(g); g.connect(this.out); s.start(t, Math.random() * .5); s.stop(t + dur + .02);
+    },
+    pad(t, notes, dur) {
+      notes.forEach(m => [-6, 6].forEach(det => {
+        const ctx = this.ctx, o = ctx.createOscillator(), g = ctx.createGain(), lp = ctx.createBiquadFilter();
+        o.type = "sawtooth"; o.frequency.value = this.hz(m); o.detune.value = det; lp.type = "lowpass"; lp.frequency.value = 900;
+        g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(.022, t + .4); g.gain.setValueAtTime(.022, t + dur - .3); g.gain.linearRampToValueAtTime(0.0001, t + dur);
+        o.connect(lp); lp.connect(g); g.connect(this.out); o.start(t); o.stop(t + dur + .05);
+      }));
+    },
+    playStep(s, t, sd) {
+      if (!this.on()) return;
+      const CH = [[62, 65, 69], [58, 62, 65], [60, 64, 67], [57, 61, 64]];
+      const bar = Math.floor(s / 16) % 4, i = s % 16, ch = CH[bar], root = ch[0];
+      if (i === 0) this.pad(t, ch.map(m => m - 12), sd * 16);
+      if (this.mode === "intro") {                                   // yaklaşan tehlike: timpani + kalp atışı
+        if (i % 4 === 0) this.tone("sine", 70, t, .5, .45, 38);
+        if (i === 14) this.tone("sine", 60, t, .3, .3, 35);
+        return;
+      }
+      if ([0, 6, 8, 11].includes(i)) this.tone("sine", 140, t, .18, .9, 42);                       // kick
+      if (i === 4 || i === 12) { this.noise(t, .14, .35, "bandpass", 1900); this.tone("triangle", 190, t, .08, .18, 120); }   // trampet
+      if (i % 2 === 0) this.noise(t, .035, .06, "highpass", 7000);                                // hi-hat
+      if (i % 2 === 0) this.tone("square", this.hz(root - 24 + (i % 4 === 2 ? 12 : 0)), t, sd * 1.8, .09, 0, 700);   // bas
+      const arp = [ch[0], ch[1], ch[2], ch[0] + 12];
+      this.tone("square", this.hz(arp[i % 4] + 12), t, sd * .9, .035);                            // piksel arpej
+      if (s % 64 === 0) this.noise(t, 1.2, .12, "highpass", 3000);                                // zil
+      if (bar === 3 && i === 8) this.tone("sawtooth", this.hz(root + 24), t, sd * 7, .03, 0, 2500);  // gerilim notası
+    },
+    hit() { if (!this.ctx || !this.on()) return; const t = this.ctx.currentTime; this.tone("sine", 180, t, .2, .55, 50); this.noise(t, .09, .3, "lowpass", 1400); },
+    whoosh() { if (!this.ctx || !this.on()) return; const t = this.ctx.currentTime; this.noise(t, .3, .3, "bandpass", 350, 2600); },
+    smack() { if (!this.ctx || !this.on()) return; const t = this.ctx.currentTime; this.noise(t, .12, .45, "highpass", 1200); this.tone("square", 300, t, .1, .08, 120); },
+    flee() { if (!this.ctx || !this.on()) return; const t = this.ctx.currentTime; this.tone("sawtooth", 220, t, 1.4, .12, 40, 1200); this.noise(t, 1.2, .2, "bandpass", 1500, 200); }
+  };
+
   function start() {
     if (B || typeof app === "undefined" || !app.ready) return;
     const list = app.fishes.filter(f => f.score > 0);
@@ -2642,7 +2716,7 @@
     document.body.appendChild(root); document.body.classList.add("battle-on");
     requestAnimationFrame(() => root.classList.add("show"));
     if (!list.length) {
-      root.innerHTML = `<div class="msg">Savaşmak için önce öğrencilere puan verin 🐟</div><button class="x" title="Kapat">✕</button>`;
+      root.innerHTML = `<div class="msg">Savaşmak için önce öğrencilere puan verin 🐟</div><button class="x" title="Akvaryuma dön (Esc)">🐠 Akvaryuma Dön</button>`;
       root.querySelector(".x").onclick = () => end();
       B = { root, stop: true };
       return;
@@ -2810,7 +2884,7 @@ fill="none" stroke="#2a0510" stroke-width="4" opacity=".55" stroke-linecap="roun
           </svg></div></div></div>
       <canvas id="bt-fw"></canvas>
       <div id="bt-podium"></div>
-      <button class="x" title="Savaştan çık">✕</button>`;
+      <button class="x" title="Savaşı bitir ve akvaryuma dön (Esc)">🐠 Akvaryuma Dön</button>`;
     root.querySelector(".x").onclick = () => end();
     for (let i = 0; i < 26; i++) {
       const d = document.createElement("div"); d.className = "dust"; const s = 2 + Math.random() * 4;
@@ -2820,10 +2894,11 @@ fill="none" stroke="#2a0510" stroke-width="4" opacity=".55" stroke-linecap="roun
     }
     const $ = id => root.querySelector("#" + id);
     const total = list.reduce((t, f) => t + f.score, 0);
-    B = { root, $, maxHp: total * 10, hp: total * 10, t: 0, phase: "intro", phaseT: 0, last: 0,
+    B = { root, $, maxHp: total * 5, hp: total * 5, t: 0, phase: "intro", phaseT: 0, last: 0,
           shake: 0, flashV: 0, squint: 0, hurt: 0, marks: [], fx: [], stats: new Map(), fwParts: [], fwNext: 0 };
     setupOctopus();
     setupFish(list);
+    Snd.start();
     updateHp(true);
     setTimeout(() => B && root.querySelector(".banner").classList.add("on"), 500);
     setTimeout(() => B && root.querySelector(".banner").classList.remove("on"), 3300);
@@ -2833,6 +2908,7 @@ fill="none" stroke="#2a0510" stroke-width="4" opacity=".55" stroke-linecap="roun
   function end() {
     if (!B) return;
     cancelAnimationFrame(B.raf);
+    Snd.stop();
     const r = B.root; B = null;
     r.classList.remove("show");
     setTimeout(() => { r.remove(); document.body.classList.remove("battle-on"); }, 600);
@@ -2949,7 +3025,7 @@ fill="none" stroke="#2a0510" stroke-width="4" opacity=".55" stroke-linecap="roun
     list.forEach((f, i) => (i % 2 ? right : left).push(f));
     const slots = (arr, sideX) => arr.map((f, i) => {
       const rows = Math.ceil(arr.length / 3), col = i % 3, row = Math.floor(i / 3);
-      return [sideX + (sideX < 500 ? -1 : 1) * col * 130 + (Math.random() - .5) * 40, 380 + (row + .5) * (720 / Math.max(rows, 1)) + (Math.random() - .5) * 30];
+      return [sideX + (sideX < 500 ? -1 : 1) * col * 185 + (col % 2) * 0 + (Math.random() - .5) * 20, 360 + (row + .5) * (740 / Math.max(rows, 1)) + (col % 2 ? 45 : 0)];
     });
     const ls = slots(left, 60), rs = slots(right, 940);
     B.fish = [];
@@ -2991,7 +3067,13 @@ fill="none" stroke="#2a0510" stroke-width="4" opacity=".55" stroke-linecap="roun
       if (p >= 1) { F.state = "wait"; F.t = 0; F.dur = 1e9; }
     } else if (F.state === "wait") {
       F.y = F.home[1] + Math.sin(F.t * 2 + F.home[0]) * 6;
-      if (B.phase === "fight" && Math.random() < dt * .7) { F.state = "go"; F.t = 0; F.dur = 2 + Math.random() * .9; F.S = [F.x, F.y]; F.T = attackTarget(); }
+      // Her saniye bir saldırı denemesi: şans, puanın %1 katı ile 2 katı arasında (ör. 18 puan → %18–%36)
+      F.roll = (F.roll || 0) + dt;
+      if (B.phase === "fight" && F.roll >= 1) {
+        F.roll -= 1;
+        const sc = F.st.score, chance = Math.min(100, sc + Math.random() * sc) / 100;
+        if (Math.random() < chance) { F.state = "go"; F.t = 0; F.dur = 2 + Math.random() * .9; F.S = [F.x, F.y]; F.T = attackTarget(); }
+      }
     } else if (F.state === "go") {                              // derinliğe doğru yavaş gider, küçülür
       const e = ease(p);
       F.x = F.S[0] + (F.T[0] - F.S[0]) * e; F.y = F.S[1] + (F.T[1] - F.S[1]) * e + Math.sin(F.t * 6) * 6;
@@ -3019,7 +3101,7 @@ fill="none" stroke="#2a0510" stroke-width="4" opacity=".55" stroke-linecap="roun
     B.flash.setAttribute("cx", hx.toFixed(0)); B.flash.setAttribute("cy", hy.toFixed(0));
     bruise(hx, hy); splash(F.x, F.y, "#ffd6dc"); dmgText(F.x, F.y, dmg);
     updateHp();
-    try { app.audio.playDrop(); } catch (e) {}
+    Snd.hit();
     if (B.hp <= 0) return win();
     if (Math.random() < .25) counter(F);
   }
@@ -3056,6 +3138,7 @@ fill="none" stroke="#2a0510" stroke-width="4" opacity=".55" stroke-linecap="roun
     const A = free[Math.floor(Math.random() * free.length)];
     A.reach = { F, t: 0, hit: false }; A.bendSign = bx < A.x ? 1 : -1;
     B.$("bt-reachLayer").appendChild(A.g);
+    Snd.whoosh();
   }
 
   function updateReach(A, dt) {
@@ -3067,7 +3150,7 @@ fill="none" stroke="#2a0510" stroke-width="4" opacity=".55" stroke-linecap="roun
       R.hit = true;
       const F = R.F, [cx, cy] = fromOct(500, 380), dx = F.x - cx, dy = F.y - cy, d = Math.hypot(dx, dy) || 1;
       F.state = "knock"; F.t = 0; F.dur = 1; F.vx = dx / d * 700; F.vy = dy / d * 700 - 150; F.spin = (Math.random() < .5 ? -1 : 1) * 720;
-      splash(F.x, F.y, "#ffffff");
+      splash(F.x, F.y, "#ffffff"); Snd.smack();
     }
     if (t > .95) { A.reach = null; B.layers[A.layer].appendChild(A.g); }
   }
@@ -3085,6 +3168,8 @@ fill="none" stroke="#2a0510" stroke-width="4" opacity=".55" stroke-linecap="roun
   // ---------------- Bitiş ----------------
   function win() {
     B.phase = "flee"; B.phaseT = 0;
+    Snd.stop(.8);                                    // müzik söner, canavar kaçış sesiyle gider
+    try { const c = app.audio.ctx; Snd.ctx = c; Snd.out = c.createGain(); Snd.out.gain.value = .5; Snd.out.connect(c.destination); Snd.flee(); } catch (e) {}
     B.fish.forEach(F => { if (F.state === "go" || F.state === "wait") { F.state = "back"; F.T = [F.x, F.y]; F.t = 0; F.dur = .8; } });
     B.arms.forEach(A => { if (A.reach) { A.reach = null; B.layers[A.layer].appendChild(A.g); } });
     setTimeout(() => B && B.$("bt-hp").classList.remove("on"), 600);
@@ -3141,7 +3226,7 @@ fill="none" stroke="#2a0510" stroke-width="4" opacity=".55" stroke-linecap="roun
     if (B.phase === "intro") {
       const p = Math.min(1, B.phaseT / 3.6), e = ease(p);
       sc = .18 + .82 * e; op = Math.min(1, p * 1.6); blur = (1 - e) * 10; oy = -120 * (1 - e);
-      if (p >= 1) { B.phase = "fight"; B.phaseT = 0; B.$("bt-hp").classList.add("on"); }
+      if (p >= 1) { B.phase = "fight"; B.phaseT = 0; B.$("bt-hp").classList.add("on"); Snd.mode = "fight"; }
     } else if (B.phase === "flee" || B.phase === "podium") {
       const p = Math.min(1, B.phaseT / 2.2), e = ease(p);
       sc = .5 * (1 - .8 * e); op = 1 - e; blur = e * 8; oy = -160 * e;
