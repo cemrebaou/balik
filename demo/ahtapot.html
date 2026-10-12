@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ahtapot</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; }
+  body {
+    background: radial-gradient(ellipse at 50% 35%, #0d2236 0%, #06111d 45%, #02060b 100%);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .ray { position: fixed; top: -10%; width: 14vw; height: 120%; pointer-events: none;
+    background: linear-gradient(180deg, rgba(120,190,255,.10), rgba(120,190,255,0) 75%);
+    filter: blur(8px); transform-origin: top center; animation: sway 9s ease-in-out infinite alternate; }
+  @keyframes sway { from { transform: rotate(-7deg); } to { transform: rotate(7deg); } }
+  svg { height: 96vh; width: auto; position: relative; }
+  #frontArms { filter: drop-shadow(0 6px 8px rgba(0,0,0,.45)); }
+  .dust { position: fixed; border-radius: 50%; background: rgba(170,210,255,.35); pointer-events: none; animation: rise linear infinite; }
+  @keyframes rise { from { transform: translateY(0); opacity: 0; } 15% { opacity: 1; } to { transform: translateY(-110vh); opacity: 0; } }
+</style>
+</head>
+<body>
+<div class="ray" style="left:18%;animation-duration:11s"></div>
+<div class="ray" style="left:46%;width:10vw;animation-duration:8s;animation-delay:-3s"></div>
+<div class="ray" style="left:70%;animation-duration:13s;animation-delay:-6s"></div>
+
+<svg viewBox="0 0 1000 1250" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Ten: üstten ışık alır, alt kenar kolların kök rengiyle (#7d1829) birebir aynıdır → ek yeri görünmez -->
+    <linearGradient id="skinBase" x1="0" y1="70" x2="0" y2="700" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#b42d43"/><stop offset=".45" stop-color="#951f33"/><stop offset=".85" stop-color="#7d1829"/><stop offset="1" stop-color="#7d1829"/>
+    </linearGradient>
+    <!-- Yanlara doğru koyulaşan hacim gölgesi; alt kısımda maske ile sönümlenir -->
+    <radialGradient id="shadeRad" cx="44%" cy="32%" r="68%">
+      <stop offset="0" stop-color="#2a0510" stop-opacity="0"/><stop offset=".55" stop-color="#2a0510" stop-opacity="0"/>
+      <stop offset="1" stop-color="#2a0510" stop-opacity=".75"/>
+    </radialGradient>
+    <linearGradient id="fadeG" x1="0" y1="70" x2="0" y2="700" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff"/><stop offset=".7" stop-color="#fff"/><stop offset=".92" stop-color="#000"/>
+    </linearGradient>
+    <mask id="fadeBottom" maskUnits="userSpaceOnUse" x="0" y="0" width="1000" height="1250">
+      <rect x="0" y="0" width="1000" height="1250" fill="url(#fadeG)"/>
+    </mask>
+    <radialGradient id="iris" cx="50%" cy="45%" r="55%">
+      <stop offset="0" stop-color="#ffe1a6"/><stop offset=".35" stop-color="#ffb35c"/><stop offset=".75" stop-color="#e5762a"/><stop offset="1" stop-color="#8f3a12"/>
+    </radialGradient>
+    <radialGradient id="socket" cx="50%" cy="50%" r="50%">
+      <stop offset=".55" stop-color="#1c030a" stop-opacity=".85"/><stop offset="1" stop-color="#1c030a" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="browG" cx="45%" cy="25%" r="80%">
+      <stop offset="0" stop-color="#c13a50"/><stop offset=".6" stop-color="#9a2236"/><stop offset="1" stop-color="#6e1424"/>
+    </radialGradient>
+    <linearGradient id="lidG" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#9a2236"/><stop offset="1" stop-color="#7a1828"/>
+    </linearGradient>
+    <filter id="b2" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="2"/></filter>
+    <filter id="b6" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="6"/></filter>
+    <filter id="b12" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="12"/></filter>
+    <clipPath id="headClip"><use href="#skinShape"/></clipPath>
+    <!-- Göz kapakları yalnızca göz içinde görünür: üst kapak yukarıdan, alt kapak aşağıdan kapanır -->
+    <clipPath id="eyeClip"><ellipse rx="49" ry="37"/></clipPath>
+  </defs>
+
+  <g id="body">
+    <g id="backArms"></g>
+    <g id="frontArms"></g>
+
+    <g id="head">
+      <path id="skinShape" d="M500 70 C640 70 715 175 715 300 C715 370 695 420 690 455 C682 530 665 590 640 630
+        C615 665 590 690 560 700 C540 686 522 676 500 676 C478 676 460 686 440 700 C410 690 385 665 360 630
+        C335 590 318 530 310 455 C305 420 285 370 285 300 C285 175 360 70 500 70 Z" fill="url(#skinBase)"/>
+
+      <g clip-path="url(#headClip)">
+        <!-- Hacim gölgesi (alt kenara ulaşmaz) -->
+        <rect x="270" y="60" width="460" height="660" fill="url(#shadeRad)" mask="url(#fadeBottom)"/>
+        <!-- Sağ kenarda ters ışık (rim light) -->
+        <path d="M640 140 C700 200 715 300 700 420" stroke="#ff8a9a" stroke-width="10" fill="none" opacity=".28" filter="url(#b6)"/>
+        <!-- Başın ortasındaki yumuşak kabartı -->
+        <ellipse cx="490" cy="230" rx="120" ry="150" fill="#c23a51" opacity=".35" filter="url(#b12)"/>
+        <!-- Parlamalar: yumuşak geniş + keskin küçük -->
+        <ellipse cx="455" cy="140" rx="70" ry="30" fill="#ff9aa8" opacity=".35" filter="url(#b6)" transform="rotate(-16 455 140)"/>
+        <ellipse cx="448" cy="135" rx="34" ry="11" fill="#ffd3d9" opacity=".75" filter="url(#b2)" transform="rotate(-16 448 135)"/>
+        <circle cx="525" cy="118" r="6" fill="#ffd3d9" opacity=".7" filter="url(#b2)"/>
+        <!-- Darbe izleri (morluk + çizik), zamanla solar -->
+        <g id="marks"></g>
+        <!-- Darbe anında kısa parlama -->
+        <ellipse id="hitFlash" cx="500" cy="330" rx="85" ry="70" fill="#ffc2cb" opacity="0" filter="url(#b12)"/>
+        <rect id="hurtTint" x="270" y="60" width="460" height="660" fill="#3a0010" opacity="0"/>
+        <!-- Ten benekleri -->
+        <g fill="#4a0b17" opacity=".55" filter="url(#b2)">
+          <circle cx="560" cy="170" r="6"/><circle cx="600" cy="230" r="7"/><circle cx="390" cy="230" r="6"/>
+          <circle cx="410" cy="280" r="4"/><circle cx="640" cy="200" r="4"/><circle cx="350" cy="320" r="5"/>
+          <circle cx="660" cy="320" r="5"/><circle cx="520" cy="210" r="3"/><circle cx="470" cy="240" r="3"/>
+          <circle cx="430" cy="190" r="3"/><circle cx="585" cy="300" r="4"/>
+        </g>
+        <!-- Burun sırtı: ortada açık, kenarlarında gölge -->
+        <path d="M470 430 C482 480 476 570 462 690 L538 690 C524 570 518 480 530 430 Z" fill="#a8283c" opacity=".55" filter="url(#b6)"/>
+        <path d="M462 470 C470 540 462 620 450 690" stroke="#4a0b17" stroke-width="8" fill="none" opacity=".35" filter="url(#b6)"/>
+        <path d="M538 470 C530 540 538 620 550 690" stroke="#4a0b17" stroke-width="8" fill="none" opacity=".35" filter="url(#b6)"/>
+        <path d="M486 470 C490 530 486 590 478 640" stroke="#e1677a" stroke-width="4" fill="none" opacity=".45" filter="url(#b2)"/>
+        <!-- Göz çukuru gölgeleri -->
+        <ellipse cx="398" cy="448" rx="70" ry="56" fill="url(#socket)" filter="url(#b6)"/>
+        <ellipse cx="602" cy="448" rx="70" ry="56" fill="url(#socket)" filter="url(#b6)"/>
+        <!-- Göz altı torbaları: koyu kıvrım + altında açık ışık -->
+        <g fill="none" stroke-linecap="round">
+          <path d="M350 478 C372 510 414 514 442 494" stroke="#2a0510" stroke-width="6" opacity=".55" filter="url(#b2)"/>
+          <path d="M354 488 C376 518 414 522 440 504" stroke="#c84a5e" stroke-width="4" opacity=".45" filter="url(#b2)"/>
+          <path d="M650 478 C628 510 586 514 558 494" stroke="#2a0510" stroke-width="6" opacity=".55" filter="url(#b2)"/>
+          <path d="M646 488 C624 518 586 522 560 504" stroke="#c84a5e" stroke-width="4" opacity=".45" filter="url(#b2)"/>
+        </g>
+        <!-- Kaşların düşürdüğü gölge -->
+        <ellipse cx="402" cy="425" rx="70" ry="20" fill="#1c030a" opacity=".55" filter="url(#b6)"/>
+        <ellipse cx="598" cy="425" rx="70" ry="20" fill="#1c030a" opacity=".55" filter="url(#b6)"/>
+      </g>
+
+      <!-- Gözler: ahtapot gibi yatay gözbebeği, damarlı iris, ıslak parlama -->
+      <g id="eyeL" transform="translate(398 442)">
+        <ellipse rx="49" ry="37" fill="#1a0308"/>
+        <ellipse rx="44" ry="32" fill="url(#iris)"/>
+        <g class="fibers"></g>
+        <ellipse rx="44" ry="32" fill="none" stroke="#5a1f08" stroke-width="5" opacity=".6"/>
+        <g class="pupil">
+          <rect x="-22" y="-9" width="44" height="18" rx="9" fill="#120206"/>
+          <ellipse cx="-12" cy="-14" rx="13" ry="8" fill="#fff" opacity=".85" transform="rotate(-15 -12 -14)"/>
+          <circle cx="14" cy="10" r="3.5" fill="#fff" opacity=".7"/>
+        </g>
+        <ellipse cx="0" cy="-20" rx="40" ry="10" fill="#fff" opacity=".12" filter="url(#b2)"/>
+        <g clip-path="url(#eyeClip)">
+          <path class="lid" d="M-60 -130 L60 -130 L60 -10 C32 -30 -32 -30 -60 -10 Z" fill="url(#lidG)"/>
+          <path class="lidLow" d="M-60 130 L60 130 L60 10 C32 26 -32 26 -60 10 Z" fill="#7d1829" transform="translate(0 34)"/>
+          <path class="lidLowEdge" d="M-60 10 C-32 26 32 26 60 10" fill="none" stroke="#c84a5e" stroke-width="3" opacity=".6" transform="translate(0 34)"/>
+        </g>
+      </g>
+      <g id="eyeR" transform="translate(602 442)">
+        <ellipse rx="49" ry="37" fill="#1a0308"/>
+        <ellipse rx="44" ry="32" fill="url(#iris)"/>
+        <g class="fibers"></g>
+        <ellipse rx="44" ry="32" fill="none" stroke="#5a1f08" stroke-width="5" opacity=".6"/>
+        <g class="pupil">
+          <rect x="-22" y="-9" width="44" height="18" rx="9" fill="#120206"/>
+          <ellipse cx="-12" cy="-14" rx="13" ry="8" fill="#fff" opacity=".85" transform="rotate(-15 -12 -14)"/>
+          <circle cx="14" cy="10" r="3.5" fill="#fff" opacity=".7"/>
+        </g>
+        <ellipse cx="0" cy="-20" rx="40" ry="10" fill="#fff" opacity=".12" filter="url(#b2)"/>
+        <g clip-path="url(#eyeClip)">
+          <path class="lid" d="M-60 -130 L60 -130 L60 -10 C32 -30 -32 -30 -60 -10 Z" fill="url(#lidG)"/>
+          <path class="lidLow" d="M-60 130 L60 130 L60 10 C32 26 -32 26 -60 10 Z" fill="#7d1829" transform="translate(0 34)"/>
+          <path class="lidLowEdge" d="M-60 10 C-32 26 32 26 60 10" fill="none" stroke="#c84a5e" stroke-width="3" opacity=".6" transform="translate(0 34)"/>
+        </g>
+      </g>
+
+      <!-- Kaş kabartıları: üstten ışık alan yumuşak hacim, çizgisiz -->
+      <path d="M336 432 C326 386 362 358 405 360 C442 363 468 390 482 436 C458 420 434 411 409 410 C380 410 356 420 336 432 Z" fill="url(#browG)"/>
+      <path d="M664 432 C674 386 638 358 595 360 C558 363 532 390 518 436 C542 420 566 411 591 410 C620 410 644 420 664 432 Z" fill="url(#browG)"/>
+      <path d="M346 422 C368 412 392 408 412 409 C438 410 460 420 478 432" stroke="#3a0812" stroke-width="4" fill="none" opacity=".55" filter="url(#b2)"/>
+      <path d="M654 422 C632 412 608 408 588 409 C562 410 540 420 522 432" stroke="#3a0812" stroke-width="4" fill="none" opacity=".55" filter="url(#b2)"/>
+      <ellipse cx="392" cy="376" rx="30" ry="9" fill="#ffc0c9" opacity=".55" filter="url(#b2)" transform="rotate(-8 392 376)"/>
+      <ellipse cx="608" cy="376" rx="30" ry="9" fill="#ffc0c9" opacity=".55" filter="url(#b2)" transform="rotate(8 608 376)"/>
+
+      <!-- Başın dış hattı: yalnızca üst ve yanlarda ince, koyu bir sınır; kolların başladığı yere inmez -->
+      <path d="M318 520 C305 420 285 370 285 300 C285 175 360 70 500 70 C640 70 715 175 715 300 C715 370 695 420 682 520"
+            fill="none" stroke="#2a0510" stroke-width="4" opacity=".55" stroke-linecap="round"/>
+    </g>
+    <g id="reachLayer"></g>
+  </g>
+  <g id="fxLayer"></g>
+  <g id="fishLayer"></g>
+</svg>
+
+<script>
+(() => {
+  const NS = "http://www.w3.org/2000/svg";
+  const mk = (tag, attrs) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); return e; };
+  const layers = { back: document.getElementById("backArms"), front: document.getElementById("frontArms") };
+  const defs = document.querySelector("defs");
+  const body = document.getElementById("body");
+  const ROOT = "#7d1829";                       // başın alt kenarıyla aynı ton
+
+  // İris damarları
+  document.querySelectorAll(".fibers").forEach(g => {
+    for (let i = 0; i < 36; i++) {
+      const a = i / 36 * Math.PI * 2, r1 = 14 + Math.random() * 4, r2 = 30 + Math.random() * 6;
+      g.appendChild(mk("line", { x1: (Math.cos(a) * r1 * 1.35).toFixed(1), y1: (Math.sin(a) * r1).toFixed(1),
+        x2: (Math.cos(a) * r2 * 1.35).toFixed(1), y2: (Math.sin(a) * r2 * .98).toFixed(1),
+        stroke: i % 2 ? "#ffe2a8" : "#b5521a", "stroke-width": 1.4, opacity: .45 }));
+    }
+  });
+
+  const ARMS = [
+    { x: 395, y: 560, a: 190, len: 470, w: 74, curl: 290,  layer: "back" },
+    { x: 605, y: 560, a: -10, len: 470, w: 74, curl: -290, layer: "back" },
+    { x: 410, y: 600, a: 160, len: 560, w: 78, curl: -250, layer: "back" },
+    { x: 590, y: 600, a: 20,  len: 560, w: 78, curl: 250,  layer: "back" },
+    { x: 425, y: 645, a: 125, len: 600, w: 82, curl: 230,  layer: "front" },
+    { x: 575, y: 645, a: 55,  len: 600, w: 82, curl: -230, layer: "front" },
+    { x: 468, y: 660, a: 100, len: 560, w: 86, curl: -240, layer: "front" },
+    { x: 532, y: 660, a: 80,  len: 560, w: 86, curl: 240,  layer: "front" }
+  ];
+  const N = 44, CUPS = 11;
+  ARMS.forEach((A, i) => {
+    A.phase = i * 1.37; A.speed = .5 + (i % 3) * .1;
+    const back = A.layer === "back";
+    // Kol boyunca renk: kökte ten rengi, uca doğru koyulaşır (arkadakiler biraz daha koyu)
+    A.grad = mk("linearGradient", { id: "ag" + i, gradientUnits: "userSpaceOnUse" });
+    A.grad.append(mk("stop", { offset: 0, "stop-color": ROOT }), mk("stop", { offset: .3, "stop-color": back ? "#701526" : ROOT }),
+                  mk("stop", { offset: 1, "stop-color": back ? "#3a0914" : "#4e0e1b" }));
+    defs.appendChild(A.grad);
+    const g = mk("g", {});
+    A.shape = mk("path", { fill: `url(#ag${i})` });
+    A.dark = mk("path", { fill: "none", stroke: "#2a0510", "stroke-linecap": "round", opacity: .35, filter: "url(#b6)" });   // iç kıvrım gölgesi
+    A.band = mk("path", { fill: back ? "#8c4655" : "#a85868", opacity: .9 });
+    A.shine = mk("path", { fill: "none", stroke: back ? "#a8344a" : "#e2687c", "stroke-linecap": "round", opacity: .55, filter: "url(#b2)" });
+    A.cups = mk("g", {});
+    for (let k = 0; k < CUPS; k++) {
+      const c = mk("g", {});
+      c.append(mk("circle", { fill: back ? "#b77a86" : "#d495a0" }), mk("circle", { fill: "#6d2232" }));
+      A.cups.appendChild(c);
+    }
+    g.append(A.shape, A.dark, A.band, A.shine, A.cups);
+    layers[A.layer].appendChild(g); A.g = g;
+  });
+
+  function drawArm(A, t) {
+    const pts = [];
+    let x = A.x, y = A.y, ang = A.a * Math.PI / 180;
+    const step = A.len / N, curl = A.curl * Math.PI / 180;
+    for (let i = 0; i <= N; i++) {
+      const u = i / N;
+      pts.push([x, y, u]);
+      const wave = Math.sin(t * A.speed * 2 - u * 5 + A.phase) * .045 * (.2 + u)
+                 + Math.sin(t * 30 + A.phase * 3 - u * 6) * .012 * hurt * u;         // çok hafif ürperme
+      const breathe = Math.sin(t * .9 + A.phase) * .25;
+      ang += curl * (1 + breathe * u + hurt * .1) * 3 * u * u / N + wave;           // hafif içe kıvrılma
+      x += Math.cos(ang) * step; y += Math.sin(ang) * step;
+    }
+    // Karşı vuruş: kol, hedef balığa doğru kamçı gibi uzanır (k: 0 = normal, 1 = tam uzanmış)
+    if (A.k > 0) {
+      const tx = A.tgt[0] - A.x, ty = A.tgt[1] - A.y, dist = Math.hypot(tx, ty) || 1, nx = -ty / dist, ny = tx / dist;
+      for (let i = 0; i <= N; i++) {
+        const u = i / N, bend = Math.sin(u * Math.PI) * dist * .18 * A.bendSign;
+        const rx = A.x + tx * u + nx * bend, ry = A.y + ty * u + ny * bend;
+        pts[i][0] += (rx - pts[i][0]) * A.k; pts[i][1] += (ry - pts[i][1]) * A.k;
+      }
+    }
+    // Renk geçişi kökten kolun %70'ine kadar uzanır
+    const mid = pts[Math.round(N * .7)];
+    A.grad.setAttribute("x1", A.x); A.grad.setAttribute("y1", A.y);
+    A.grad.setAttribute("x2", mid[0].toFixed(1)); A.grad.setAttribute("y2", mid[1].toFixed(1));
+
+    const L = [], R = [], side = A.curl > 0 ? 1 : -1;
+    for (let i = 0; i <= N; i++) {
+      const [px, py, u] = pts[i];
+      const [qx, qy] = pts[Math.min(N, i + 1)], [ox, oy] = pts[Math.max(0, i - 1)];
+      let dx = qx - ox, dy = qy - oy; const d = Math.hypot(dx, dy) || 1; dx /= d; dy /= d;
+      const w = A.w * Math.pow(1 - u, .9) / 2 + 2.5;
+      L.push([px - dy * w, py + dx * w, -dy, dx, w]); R.push([px + dy * w, py - dx * w, dy, -dx, w]);
+    }
+    const f = p => p[0].toFixed(1) + " " + p[1].toFixed(1);
+    let dStr = "M" + f(L[0]);
+    for (let i = 1; i <= N; i++) dStr += " L" + f(L[i]);
+    dStr += ` Q${f(pts[N])} ${f(R[N])}`;
+    for (let i = N - 1; i >= 0; i--) dStr += " L" + f(R[i]);
+    A.shape.setAttribute("d", dStr + " Z");
+
+    const inner = side > 0 ? R : L, outer = side > 0 ? L : R, from = Math.round(N * .26);
+    let ds = "";
+    for (let i = from - 4; i < N - 2; i++) { const p = inner[i]; ds += (ds ? " L" : "M") + f([p[0] - p[2] * p[4] * .15, p[1] - p[3] * p[4] * .15]); }
+    A.dark.setAttribute("d", ds); A.dark.setAttribute("stroke-width", (A.w * .22).toFixed(1));
+
+    let b = "M" + f(inner[from]);
+    for (let i = from + 1; i <= N; i++) b += " L" + f(inner[i]);
+    for (let i = N; i >= from; i--) { const p = inner[i], k = .75 * Math.min(1, (i - from) / 7); b += " L" + f([p[0] - p[2] * p[4] * k, p[1] - p[3] * p[4] * k]); }
+    A.band.setAttribute("d", b + " Z");
+
+    let s = "";
+    for (let i = 3; i < N * .8; i++) { const p = outer[i]; s += (s ? " L" : "M") + f([p[0] - p[2] * p[4] * .38, p[1] - p[3] * p[4] * .38]); }
+    A.shine.setAttribute("d", s); A.shine.setAttribute("stroke-width", (A.w * .12).toFixed(1));
+
+    [...A.cups.children].forEach((c, k) => {
+      const i = from + 2 + Math.round(k * (N - from - 4) / CUPS);
+      const p = inner[Math.min(N, i)], r = Math.max(2, p[4] * .42);
+      const cx = p[0] - p[2] * p[4] * .38, cy = p[1] - p[3] * p[4] * .38;
+      const [o, ii] = c.children;
+      o.setAttribute("cx", cx.toFixed(1)); o.setAttribute("cy", cy.toFixed(1)); o.setAttribute("r", r.toFixed(1));
+      ii.setAttribute("cx", cx.toFixed(1)); ii.setAttribute("cy", cy.toFixed(1)); ii.setAttribute("r", (r * .4).toFixed(1));
+    });
+  }
+
+  ARMS.forEach(A => { A.k = 0; A.reach = null; });
+
+  // ===== Balıklar: ahtapota saldırır, %25 ihtimalle ahtapot koluyla karşılık verir =====
+  const fishLayer = document.getElementById("fishLayer"), fxLayer = document.getElementById("fxLayer");
+  const flash = document.getElementById("hitFlash");
+  const COLORS = [["#ffb03a", "#e0661c"], ["#5ec8ff", "#1f6fd1"], ["#ffe066", "#e0a800"]];
+  const ease = x => x < .5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2;
+  const easeOut = x => 1 - Math.pow(1 - x, 3);
+  let shake = 0, flashV = 0, squint = 0, hurt = 0;
+  const marksG = document.getElementById("marks"), tint = document.getElementById("hurtTint"), marks = [];
+  function bruise(x, y) {                        // vurulan yerde morluk ve çizikler
+    const g = mk("g", { transform: `translate(${x.toFixed(0)} ${y.toFixed(0)}) rotate(${(Math.random() * 360).toFixed(0)})` });
+    g.append(mk("ellipse", { rx: 34, ry: 24, fill: "#3a0516", opacity: .55, filter: "url(#b6)" }));
+    for (let k = 0; k < 3; k++)
+      g.append(mk("path", { d: `M${-16 + k * 4} ${-10 + k * 9} l${24 + k * 3} ${-6 + k * 2}`, stroke: "#ffb0bd", "stroke-width": 3, "stroke-linecap": "round", opacity: .8, filter: "url(#b2)" }));
+    marksG.appendChild(g); marks.push({ g, age: 0 });
+    if (marks.length > 6) marks.shift().g.remove();
+  }
+
+  function makeFish(i) {
+    const [c1, c2] = COLORS[i];
+    defs.appendChild(Object.assign(mk("linearGradient", { id: "fg" + i, x1: 0, y1: 0, x2: 0, y2: 1 }), {}));
+    const fg = document.getElementById("fg" + i);
+    fg.append(mk("stop", { offset: 0, "stop-color": c1 }), mk("stop", { offset: 1, "stop-color": c2 }));
+    const g = mk("g", {}), inner = mk("g", {});
+    inner.append(
+      mk("path", { d: "M-38 0 L-70 -26 Q-62 0 -70 26 Z", fill: c2 }),                         // kuyruk
+      mk("path", { d: "M-6 -26 Q10 -50 26 -24 Z", fill: c2 }),                                  // sırt yüzgeci
+      mk("ellipse", { rx: 46, ry: 28, fill: `url(#fg${i})` }),                                  // gövde
+      mk("path", { d: "M-2 4 Q10 18 22 6", stroke: c2, "stroke-width": 4, fill: "none", "stroke-linecap": "round" }),
+      mk("ellipse", { cx: -8, cy: -10, rx: 22, ry: 7, fill: "#fff", opacity: .35 }),
+      mk("circle", { cx: 26, cy: -6, r: 8, fill: "#fff" }), mk("circle", { cx: 28, cy: -6, r: 4.5, fill: "#111" })
+    );
+    g.appendChild(inner); fishLayer.appendChild(g);
+    return { g, inner, i, state: "rest", t: 0, dur: .3 + i * .5, x: 0, y: 0, s: 1, rot: 0, face: 1 };
+  }
+  const fishes = [0, 1, 2].map(makeFish);
+
+  function startFish(F) {
+    const side = Math.random() < .5 ? -1 : 1;
+    F.S = [500 + side * (250 + Math.random() * 230), 820 + Math.random() * 330];       // ön planda, kenarlardan
+    F.T = [500 + (Math.random() - .5) * 260, 300 + Math.random() * 230];                 // ahtapotun başı/yüzü
+    F.state = "go"; F.t = 0; F.dur = 2.2 + Math.random() * .8; F.rot = 0;
+  }
+
+  function splash(x, y, color) {
+    for (let k = 0; k < 9; k++) {
+      const c = mk("circle", { cx: x, cy: y, r: 4 + Math.random() * 5, fill: color, opacity: .9 });
+      fxLayer.appendChild(c);
+      const a = Math.random() * Math.PI * 2, v = 120 + Math.random() * 200;
+      fx.push({ el: c, x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: .5 + Math.random() * .3, age: 0 });
+    }
+  }
+  const fx = [];
+
+  // Ahtapotun koordinatlarına çevir (gövde nefes alırken ölçeklenip kayıyor)
+  let bodyTf = [0, 0, 1];
+  const toBody = (x, y) => [(x - bodyTf[0]) / bodyTf[2], (y - bodyTf[1]) / bodyTf[2]];
+
+  function counter(F) {
+    // Balığa en yakın kökü olan, şu an boşta olan kol
+    // Balık hangi taraftaysa o taraftaki kollardan (alt kollar dahil) rastgele biri vurur
+    const [bx, by] = toBody(F.x, F.y);
+    const left = bx < 500;
+    const free = ARMS.filter(A => !A.reach && (A.x < 500) === left);
+    if (!free.length) return;
+    const A = free[Math.floor(Math.random() * free.length)];
+    A.reach = { F, t: 0, hit: false }; A.bendSign = bx < A.x ? 1 : -1;
+    document.getElementById("reachLayer").appendChild(A.g);          // vuran kol başın önüne geçer
+  }
+
+  function updateFish(F, dt) {
+    F.t += dt;
+    let p = Math.min(1, F.t / F.dur);
+    if (F.state === "rest") { if (p >= 1) startFish(F); F.g.setAttribute("opacity", 0); return; }
+    F.g.setAttribute("opacity", 1);
+    if (F.state === "go") {                      // derinliğe doğru: yavaş gider, küçülür
+      const e = ease(p);
+      F.x = F.S[0] + (F.T[0] - F.S[0]) * e; F.y = F.S[1] + (F.T[1] - F.S[1]) * e + Math.sin(F.t * 6) * 6;
+      F.s = 1.5 - .8 * e; F.face = F.T[0] >= F.S[0] ? 1 : -1;
+      if (p >= 1) {                              // vuruş!
+        F.state = "back"; F.t = 0; F.dur = .9;
+        shake = .3; flashV = .5; hurt = 1;
+        { const [hx, hy] = toBody(F.x, F.y); flash.setAttribute("cx", hx.toFixed(0)); flash.setAttribute("cy", hy.toFixed(0)); bruise(hx, hy); }
+        splash(F.x, F.y, "#ffd6dc");
+        if (Math.random() < .25) counter(F);
+      }
+    } else if (F.state === "back") {             // hızlı geri döner, büyür
+      const e = easeOut(p);
+      F.x = F.T[0] + (F.S[0] - F.T[0]) * e; F.y = F.T[1] + (F.S[1] - F.T[1]) * e;
+      F.s = .7 + .8 * e; F.face = F.S[0] >= F.T[0] ? -1 : 1;
+      if (p >= 1) { F.state = "rest"; F.t = 0; F.dur = .3 + Math.random() * 1.2; }
+    } else if (F.state === "knock") {            // kolla vurulunca savrulur ve döner
+      F.x += F.vx * dt; F.y += F.vy * dt; F.vx *= .96; F.vy *= .96; F.rot += F.spin * dt;
+      F.s = Math.min(1.5, F.s + dt * .5);
+      if (p >= 1) { F.state = "back"; F.T = [F.x, F.y]; F.t = 0; F.dur = .8; F.rot = 0; }
+    }
+    F.g.setAttribute("transform", `translate(${F.x.toFixed(1)} ${F.y.toFixed(1)}) rotate(${F.rot.toFixed(1)}) scale(${(F.s * F.face).toFixed(3)} ${F.s.toFixed(3)})`);
+    F.inner.setAttribute("transform", `rotate(${(Math.sin(F.t * 18) * 4).toFixed(1)})`);
+  }
+
+  function updateReach(A, dt) {
+    const R = A.reach; if (!R) { A.k = 0; return; }
+    R.t += dt;
+    const t = R.t;
+    A.k = t < .28 ? easeOut(t / .28) : t < .4 ? 1 : Math.max(0, 1 - ease((t - .4) / .55));
+    const [bx, by] = toBody(R.F.x, R.F.y);
+    A.tgt = [bx, by];
+    if (!R.hit && t >= .28) {                    // değdi: balık savrulur
+      R.hit = true;
+      const F = R.F, dx = F.x - 500, dy = F.y - 380, d = Math.hypot(dx, dy) || 1;
+      F.state = "knock"; F.t = 0; F.dur = 1; F.vx = dx / d * 700; F.vy = dy / d * 700 - 150; F.spin = (Math.random() < .5 ? -1 : 1) * 720;
+      splash(F.x, F.y, "#ffffff");
+    }
+    if (t > .95) { A.reach = null; layers[A.layer].appendChild(A.g); }
+  }
+
+  const lowLids = document.querySelectorAll(".lidLow, .lidLowEdge");
+  const lids = document.querySelectorAll(".lid"), pupils = document.querySelectorAll(".pupil");
+  let nextBlink = 2500, blinkT = -1, look = [0, 0], lookTo = [0, 0], nextLook = 1500;
+
+  let lastMs = 0;
+  function frame(ms) {
+    const t = ms / 1000, dt = Math.min(.05, (ms - lastMs) / 1000 || 0); lastMs = ms;
+    fishes.forEach(F => updateFish(F, dt));
+    ARMS.forEach(A => updateReach(A, dt));
+    ARMS.forEach(A => drawArm(A, t));
+    const br = 1 + Math.sin(t * 1.3) * .012, fl = Math.sin(t * .8) * 10;
+    shake = Math.max(0, shake - dt); flashV = Math.max(0, flashV - dt * 2.2);
+    const sx = shake ? (Math.random() - .5) * 18 * shake / .25 : 0, sy = shake ? (Math.random() - .5) * 10 * shake / .25 : 0;
+    bodyTf = [500 * (1 - br) + sx, fl + 400 * (1 - br) + sy, br];
+    body.setAttribute("transform", `translate(${bodyTf[0].toFixed(1)} ${bodyTf[1].toFixed(1)}) scale(${br})`);
+    flash.setAttribute("opacity", flashV.toFixed(2));
+    hurt = Math.max(0, hurt - dt * 1.6);
+    tint.setAttribute("opacity", (hurt * .22).toFixed(2));
+    for (let i = marks.length - 1; i >= 0; i--) {
+      const M = marks[i]; M.age += dt;
+      M.g.setAttribute("opacity", Math.max(0, 1 - M.age / 2.5).toFixed(2));
+      if (M.age > 2.5) { M.g.remove(); marks.splice(i, 1); }
+    }
+    const reaching = ARMS.some(A => A.k > .2);
+    squint += ((reaching ? 1 : 0) - squint) * .2;
+    for (let i = fx.length - 1; i >= 0; i--) {
+      const P = fx[i]; P.age += dt; P.x += P.vx * dt; P.y += P.vy * dt; P.vx *= .9; P.vy *= .9;
+      P.el.setAttribute("cx", P.x.toFixed(1)); P.el.setAttribute("cy", P.y.toFixed(1));
+      P.el.setAttribute("opacity", Math.max(0, .9 * (1 - P.age / P.life)).toFixed(2));
+      if (P.age >= P.life) { P.el.remove(); fx.splice(i, 1); }
+    }
+    if (blinkT < 0 && ms > nextBlink) blinkT = ms;
+    let close = 0;
+    if (blinkT >= 0) {
+      const k = (ms - blinkT) / 220; close = k < .5 ? k * 2 : Math.max(0, 2 - k * 2);
+      if (k >= 1) { blinkT = -1; nextBlink = ms + 2500 + Math.random() * 3500; }
+    }
+    // Kapaklar: üst kapak aşağı, alt kapak yukarı. Darbede ikisi ortada buluşup gözü kısar, kırpmada tam kapanır
+    const h = Math.min(1, hurt * 1.6);
+    const up = Math.max(close * 48, squint * 14, h * 26), low = 34 - Math.max(close * 40, h * 52);
+    lids.forEach(l => l.setAttribute("transform", `translate(0 ${up.toFixed(1)})`));
+    lowLids.forEach(l => l.setAttribute("transform", `translate(0 ${low.toFixed(1)})`));
+    if (ms > nextLook) { lookTo = [(Math.random() - .5) * 16, (Math.random() - .5) * 8]; nextLook = ms + 1200 + Math.random() * 2500; }
+    look = look.map((v, i) => v + (lookTo[i] - v) * .06);
+    const jit = hurt ? (Math.random() - .5) * 6 * hurt : 0;
+    pupils.forEach(p => p.setAttribute("transform", `translate(${(look[0] + jit).toFixed(1)} ${look[1].toFixed(1)}) scale(${(1 - hurt * .45).toFixed(2)})`));
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  for (let i = 0; i < 28; i++) {
+    const d = document.createElement("div"); d.className = "dust";
+    const s = 2 + Math.random() * 4;
+    Object.assign(d.style, { width: s + "px", height: s + "px", left: Math.random() * 100 + "vw", top: 100 + Math.random() * 10 + "vh",
+      animationDuration: 12 + Math.random() * 14 + "s", animationDelay: -Math.random() * 20 + "s" });
+    document.body.appendChild(d);
+  }
+})();
+</script>
+</body>
+</html>
