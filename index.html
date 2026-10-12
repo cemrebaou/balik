@@ -380,7 +380,6 @@
     #fullscreen-btn { left: 58px; }
     /* Odak modu: akvaryum (balık + süsler), bu iki düğme ve imza dışında her şey gizlenir */
     body.focus-mode #roster-panel, body.focus-mode #bottom-bar, body.focus-mode #level-bar,
-    body.focus-mode #meb-logo { display: none !important; }
     body.hide-names .fish-name { display: none !important; }
     #bulk-file-input { display: none; }
 
@@ -456,17 +455,6 @@
   </style>
 </head>
 <body>
-  <!-- Sağ Üst: MEB Logosu (Vektörel Çizim) -->
-  <svg id="meb-logo" aria-hidden="true" style="position: fixed; top: 20px; right: 20px; z-index: 999; width: 63px; height: auto; pointer-events: none; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.4));" viewBox="60 -5 475 740" xmlns="http://www.w3.org/2000/svg">
-    <!-- Baş / Daire -->
-    <circle cx="460" cy="63" r="63" fill="#E32622"/>
-    <!-- Kırmızı Şekil -->
-    <polygon points="70,148 176,148 176,460 277,562 204,636 70,500" fill="#E32622"/>
-    <!-- Kırmızı Katlanma (koyu bant) -->
-    <polygon points="176,148 364,338 291,413 176,298" fill="#A8221E"/>
-    <!-- Mavi Şekil -->
-    <polygon points="407,148 513,148 513,503 291,725 218,652 407,463 407,298 380,325 306,250" fill="#235BA3"/>
-  </svg>
 
   <!-- Sol Alt: Tıklanabilir Geliştirici İmzası -->
   <button id="focus-toggle" class="corner-btn" onclick="app.toggleFocusMode()" title="Sadece Akvaryumu Göster">🐵</button>
