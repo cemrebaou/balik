@@ -2256,7 +2256,16 @@
     "color:#3b2300;font-weight:900;border:1px solid #fde68a!important;box-shadow:0 0 12px rgba(251,191,36,.55)}" +
     "#sheet-who.pro .bdg{background:#3b2300;color:#fde047}" +
     "#sheet-who.trial .bdg{background:#0ea5e9;color:#fff}" +
-    "#sheet-who.expired{border:1px solid #ef4444!important}#sheet-who.expired .bdg{background:#b91c1c;color:#fff}";
+    "#sheet-who.expired{border:1px solid #ef4444!important}#sheet-who.expired .bdg{background:#b91c1c;color:#fff}" +
+    // Pro hesabın hesap penceresi: altın çerçeve + parıltılı başlık kartı
+    "#sheet-box.pro{border:1px solid #fbbf24;box-shadow:0 0 0 1px rgba(251,191,36,.35),0 0 40px rgba(251,191,36,.35)}" +
+    ".sh-pro{position:relative;overflow:hidden;border-radius:12px;padding:14px 16px;color:#3b2300;" +
+    "background:linear-gradient(110deg,#f59e0b,#fde047 35%,#fbbf24 50%,#fde047 65%,#f59e0b);background-size:200% 100%;animation:shGold 5s linear infinite}" +
+    ".sh-pro .t{font-size:22px;font-weight:900;letter-spacing:.3px;display:flex;align-items:center;gap:8px}" +
+    ".sh-pro .t .bdg{font-size:11px;font-weight:900;letter-spacing:1px;background:#3b2300;color:#fde047;padding:3px 8px;border-radius:999px}" +
+    ".sh-pro .n{font-size:15px;font-weight:800;margin-top:2px}" +
+    ".sh-pro ul{margin:8px 0 0;padding:0;list-style:none;font-size:13px;font-weight:700;display:grid;gap:3px}" +
+    ".sh-pro .ty{margin-top:8px;font-size:12px;font-weight:700;opacity:.85}";
   document.head.appendChild(st);
 
   // ---- Kayıt haberleri ----
@@ -2313,8 +2322,12 @@
     const title = "<h3 style='margin:0'>👤 Hesap</h3>";
     let h = "";
     if (name === "conn") {
-      const uyeTxt = !uye ? "" : uye.pro ? "⭐ Pro üyelik" : sure ? "⛔ Ücretsiz deneme süresi doldu" : `🕒 Ücretsiz deneme: ${uye.kalan} gün kaldı`;
-      h = `${title}<p>Hesap: <b>${esc(cfg.ad)}</b>${uyeTxt ? "<br>" + uyeTxt : ""}<br>${esc(statusTxt())}</p>
+      const uyeTxt = !uye || uye.pro ? "" : sure ? "⛔ Ücretsiz deneme süresi doldu" : `🕒 Ücretsiz deneme: ${uye.kalan} gün kaldı`;
+      h = uye?.pro ? `<div class="sh-pro"><div class="t">👑 Pro Hesap <span class="bdg">PRO</span></div><div class="n">${esc(cfg.ad)}</div>
+          <ul><li>✦ Süresiz kayıt</li><li>✦ Her bilgisayardan aynı sınıf</li><li>✦ Ayarların her yerde seninle</li></ul>
+          <div class="ty">Desteğin için teşekkürler 🙏</div></div><p>${esc(statusTxt())}</p>`
+        : `${title}<p>Hesap: <b>${esc(cfg.ad)}</b>${uyeTxt ? "<br>" + uyeTxt : ""}<br>${esc(statusTxt())}</p>`;
+      h += `
         <p style="font-size:12px;opacity:.75">${sure ? esc(SURE_TXT) : "Değişiklikler birkaç saniye içinde kendiliğinden internete kaydedilir."}</p>${m}
         <div class="modal-actions"><button class="btn-secondary" data-a="cut">Çıkış yap</button>${uye && !uye.pro ? waBtn() : ""}<button class="btn-action" data-a="close">Kapat</button></div>`;
     } else if (name === "sure") {
@@ -2341,6 +2354,7 @@
         <div class="modal-actions"><button class="btn-secondary" data-a="leave">🆕 Yeni aç (boş ekran)</button><button class="btn-action" data-a="start">🔑 Tekrar giriş yap</button></div>`;
     }
     box.innerHTML = h;
+    box.classList.toggle("pro", name === "conn" && !!uye?.pro);
     if (name === "start") box.querySelector(ctx.ad ? "#sh-pin" : "#sh-ad").focus();
   }
   const openBack = () => back.classList.add("open");
