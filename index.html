@@ -462,7 +462,7 @@
   <button id="focus-toggle" class="corner-btn" onclick="app.toggleFocusMode()" title="Sadece Akvaryumu Göster">🐵</button>
   <button id="fullscreen-btn" class="corner-btn" onclick="app.toggleFullscreen()" title="Tam Ekran">⛶</button>
   <a class="dev-signature" href="https://www.instagram.com/cemrebaou/" target="_blank" rel="noopener noreferrer">
-    Developed by Cemre Başoğlu - <span id="app-version">v0.7</span>
+    Developed by Cemre Başoğlu - <span id="app-version">v0.8</span>
   </a>
 
 <div id="roster-panel">
@@ -2568,6 +2568,10 @@
   #battle .spd { position: absolute; top: 16px; right: 200px; z-index: 7; padding: 10px 16px; border-radius: 999px; border: 1px solid rgba(255,255,255,.3);
     background: rgba(8,25,40,.75); color: #fff; font: inherit; font-weight: 800; font-size: 15px; cursor: pointer; opacity: .8; min-width: 78px; }
   #battle .spd:hover { opacity: 1; }
+  #battle .mute { position: absolute; top: 16px; right: 300px; z-index: 7; width: 46px; height: 43px; border-radius: 999px; border: 1px solid rgba(255,255,255,.3);
+    background: rgba(8,25,40,.75); color: #fff; font-size: 18px; cursor: pointer; opacity: .8; }
+  #battle .mute:hover { opacity: 1; }
+  #battle .mute.off { background: #7f1d1d; border-color: #ef4444; opacity: 1; }
   #battle .spd.on { background: #f59e0b; border-color: #fcd34d; color: #3b2300; opacity: 1; }
   #battle .banner { position: absolute; left: 0; right: 0; top: 38%; text-align: center; z-index: 4; pointer-events: none;
     font-size: clamp(32px, 6vw, 84px); font-weight: 900; letter-spacing: 3px; color: #ffd9de;
@@ -2905,9 +2909,14 @@ fill="none" stroke="#2a0510" stroke-width="4" opacity=".55" stroke-linecap="roun
           </svg></div></div></div>
       <canvas id="bt-fw"></canvas>
       <div id="bt-podium"></div>
+      <button class="mute" title="Sesi aç / kapat">🔊</button>
       <button class="spd" title="Saldırı hızı: balıkların saldırı denemesi arasındaki süre (1x = 1 sn, 2x = 0,5 sn, 4x = 0,25 sn)">⏩ 1x</button>
       <button class="x" title="Savaşı bitir ve akvaryuma dön (Esc)">🐠 Akvaryuma Dön</button>`;
     root.querySelector(".x").onclick = () => end();
+    const mute = root.querySelector(".mute");
+    const paintMute = () => { const on = app.audio.enabled; mute.textContent = on ? "🔊" : "🔇"; mute.classList.toggle("off", !on); };
+    mute.onclick = () => { app.audio.toggle(); paintMute(); };      // akvaryumdaki ses düğmesiyle aynı ayar
+    paintMute();
     const spd = root.querySelector(".spd");
     spd.onclick = () => {
       B.speed = B.speed === 1 ? 2 : B.speed === 2 ? 4 : 1;
