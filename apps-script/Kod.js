@@ -1,7 +1,7 @@
 // Eğitici Balık — kayıt sunucusu (Google Apps Script)
 // Her hesap = tabloda bir sekme. Düzen:
 //   A1:B4  → PIN, Son kayıt (gün.ay.yıl saat:dakika), Oturum kodu, Ayarlar kodu
-//   D1:E2  → Açılış (hesabın açıldığı gün), Üyelik (boş = 30 gün ücretsiz deneme, "Pro" = süresiz)
+//   E1:F2  → Açılış (hesabın açıldığı gün), Üyelik (boş = 30 gün ücretsiz deneme, "Pro" = süresiz)
 //            Deneme süresi dolmuş ve Pro değilse kayıt kabul edilmez (okuma serbest, veri silinmez).
 //   Ayarlar: sıra eşiği (0 = Tümü) - tema - mouse kilidi - sınıf puan eşiği - sıralama   (ör. 5-0-0-10-3)
 //   Satır 6 → sınıf adları (her sınıf kendi bloğunda: 3 sütun + 1 boş sütun, soldan sağa)
@@ -27,20 +27,23 @@ const duz_ = v => String(v === undefined || v === null ? '' : v).replace(/^'/, '
 const tarih_ = () => Utilities.formatDate(new Date(), 'Europe/Istanbul', 'dd.MM.yyyy HH:mm');
 const gun_ = () => Utilities.formatDate(new Date(), 'Europe/Istanbul', 'dd.MM.yyyy');
 
+// E1:F2'deki açılış tarihi ve üyelik. (İlk sürümde D1:E2'ye yazılmıştı; oradaysa okunup E1:F2'ye taşınır.)
+function uyeOku_(s) {
+  if (s.getMaxColumns() < 6) return { acilis: '', uye: '', eski: false };
+  const v = s.getRange(1, 4, 2, 3).getDisplayValues();
+  return v[0][0] === 'Açılış' ? { acilis: v[0][1], uye: v[1][1], eski: true } : { acilis: v[0][2], uye: v[1][2], eski: false };
+}
+
 // Üyelik durumu → {pro, kalan}. Açılış tarihi boşsa bugün yazılır (deneme bugünden başlar).
 function uyelik_(s) {
-  const v = s.getRange(1, 4, 2, 2).getValues();
-  let acilis = v[0][1], d = null;
-  if (acilis instanceof Date) d = acilis;
-  else {
-    const m = String(acilis || '').match(/(\d{1,2})[.\/](\d{1,2})[.\/](\d{4})/);
-    if (m) d = new Date(+m[3], +m[2] - 1, +m[1]);
+  const u = uyeOku_(s);
+  const m = String(u.acilis || '').match(/(\d{1,2})[.\/](\d{1,2})[.\/](\d{4})/);
+  let d = m ? new Date(+m[3], +m[2] - 1, +m[1]) : null;
+  if (!d || u.eski) {
+    s.getRange(1, 4, 2, 3).setValues([['', 'Açılış', "'" + (d ? u.acilis : gun_())], ['', 'Üyelik', u.uye]]);
+    d = d || new Date();
   }
-  if (!d) {
-    s.getRange(1, 4, 2, 2).setValues([['Açılış', "'" + gun_()], ['Üyelik', v[1][1]]]);
-    d = new Date();
-  }
-  const pro = /^\s*pro\s*$/i.test(String(v[1][1] || ''));
+  const pro = /^\s*pro\s*$/i.test(String(u.uye || ''));
   const gecen = Math.floor((Date.now() - d.getTime()) / 864e5);
   return { pro: pro, kalan: Math.max(0, DENEME_GUN - gecen) };
 }
@@ -72,11 +75,11 @@ function grupla_(rows, names) {
 // Sekmenin tamamını yazar. Kalınlık her sınıf için tek seferde (toplu) verilir.
 function yaz_(s, pin, tok, ayar, siniflar) {
   const enCok = siniflar.reduce((m, c) => Math.max(m, c.rows.length), 0);
-  const uye = s.getMaxColumns() >= 5 ? s.getRange(1, 4, 2, 2).getDisplayValues() : [['', ''], ['', '']];   // Açılış / Üyelik korunur
+  const uye = uyeOku_(s);                     // Açılış / Üyelik korunur
   s.clear();
   boyut_(s, Math.max(20, ILK_SATIR + enCok + 10), Math.max(8, siniflar.length * BLOK + 1));
   s.getRange(1, 1, 4, 2).setValues([['PIN', "'" + pin], ['Son kayıt', "'" + tarih_()], ['Oturum', tok], ['Ayarlar', "'" + ayar]]);
-  s.getRange(1, 4, 2, 2).setValues([['Açılış', "'" + (uye[0][1] || gun_())], ['Üyelik', uye[1][1]]]);
+  s.getRange(1, 5, 2, 2).setValues([['Açılış', "'" + (uye.acilis || gun_())], ['Üyelik', uye.uye]]);
   siniflar.forEach((c, k) => {
     const c0 = 1 + k * BLOK, n = c.rows.length;
     s.getRange(6, c0).setValue("'" + c.ad).setFontWeight('bold');
@@ -115,7 +118,7 @@ function tasi_(s) {
   try { sinif = JSON.parse(String(s.getRange(4, 6).getValue() || '[]')); } catch (x) { sinif = []; }
   const n = s.getLastRow() - 1;
   const rows = n > 0 ? s.getRange(2, 1, n, 4).getValues() : [];
-  s.getRange(1, 4, 2, 2).clearContent();       // eski düzende burada öğrenci verisi vardı
+  s.getRange(1, 4, 2, 3).clearContent();       // eski düzende burada öğrenci verisi vardı
   yaz_(s, pin, tok, '', grupla_(rows, sinif));
 }
 
