@@ -2533,5 +2533,667 @@
   if (app.ready) hook(); else window.addEventListener("aquarium-ready", hook, { once: true });
 })();
 </script>
+<script>(() => {
+  // ===== Ders Sonu Canavarı: öğrenci balıkları puanlarıyla dev ahtapota saldırır =====
+  // Can = sınıfın toplam puanı × 10. Her vuruş, balığın puanı kadar hasar verir. Canavar her zaman yenilir;
+  // can azaldıkça %50 boyuta kadar küçülür, sonunda kaçar ve en çok hasar verenler podyuma çıkar.
+  const NS = "http://www.w3.org/2000/svg";
+  const mk = (tag, attrs) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); return e; };
+  const ease = x => x < .5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2;
+  const easeOut = x => 1 - Math.pow(1 - x, 3);
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+  const css = document.createElement("style");
+  css.textContent = `
+  body.battle-on > *:not(#battle) { visibility: hidden !important; }
+  #battle { position: fixed; inset: 0; z-index: 99999; overflow: hidden; opacity: 0; transition: opacity .8s;
+    background: radial-gradient(ellipse at 50% 30%, #0b1d2e 0%, #050d17 50%, #010307 100%); font-family: inherit; user-select: none; }
+  #battle.show { opacity: 1; }
+  #battle .ray { position: absolute; top: -10%; width: 14vw; height: 120%; pointer-events: none;
+    background: linear-gradient(180deg, rgba(120,190,255,.09), rgba(120,190,255,0) 75%); filter: blur(8px);
+    transform-origin: top center; animation: btSway 9s ease-in-out infinite alternate; }
+  @keyframes btSway { from { transform: rotate(-7deg); } to { transform: rotate(7deg); } }
+  #battle .fog { position: absolute; left: -20%; right: -20%; height: 45%; pointer-events: none; filter: blur(30px); opacity: .55;
+    background: radial-gradient(ellipse at 30% 50%, rgba(90,120,150,.35), transparent 60%), radial-gradient(ellipse at 70% 60%, rgba(90,120,150,.3), transparent 60%);
+    animation: btFog 22s ease-in-out infinite alternate; }
+  @keyframes btFog { from { transform: translateX(-6%); } to { transform: translateX(6%); } }
+  #battle svg.stage { position: absolute; inset: 0; width: 100%; height: 100%; }
+  #battle .dust { position: absolute; border-radius: 50%; background: rgba(170,210,255,.35); pointer-events: none; animation: btRise linear infinite; }
+  @keyframes btRise { from { transform: translateY(0); opacity: 0; } 15% { opacity: 1; } to { transform: translateY(-110vh); opacity: 0; } }
+  #battle .x { position: absolute; top: 14px; right: 16px; z-index: 5; width: 38px; height: 38px; border-radius: 50%; border: 1px solid rgba(255,255,255,.25);
+    background: rgba(0,0,0,.35); color: #fff; font-size: 18px; cursor: pointer; opacity: .55; }
+  #battle .x:hover { opacity: 1; }
+  #battle .banner { position: absolute; left: 0; right: 0; top: 38%; text-align: center; z-index: 4; pointer-events: none;
+    font-size: clamp(32px, 6vw, 84px); font-weight: 900; letter-spacing: 3px; color: #ffd9de;
+    text-shadow: 0 0 24px rgba(255,40,70,.8), 0 4px 0 #5a0012; opacity: 0; transform: scale(.85); transition: opacity .6s, transform .6s; }
+  #battle .banner.on { opacity: 1; transform: scale(1); }
+  #battle .banner small { display: block; font-size: .32em; letter-spacing: 1px; font-weight: 700; color: #ffc2cb; margin-top: 8px; }
+
+  /* Kristal can barı */
+  #bt-hp { position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%); z-index: 4; text-align: center; width: min(76vw, 960px);
+    opacity: 0; transition: opacity .6s; }
+  #bt-hp.on { opacity: 1; }
+  #bt-hp .lbl { display: flex; justify-content: space-between; align-items: flex-end; color: #ffd9de; font-weight: 900; font-size: 16px;
+    letter-spacing: 1px; margin: 0 14px 6px; text-shadow: 0 2px 6px #000; }
+  #bt-hp .lbl .num { font-size: 14px; opacity: .85; }
+  #bt-hp .rim { padding: 4px; background: linear-gradient(180deg, #ffe3e8, #c96a7d 40%, #5a1424 60%, #f2b7c2);
+    clip-path: polygon(2.2% 0, 97.8% 0, 100% 50%, 97.8% 100%, 2.2% 100%, 0 50%); filter: drop-shadow(0 0 14px rgba(255,40,80,.55)); }
+  #bt-hp .bar { position: relative; height: 34px; overflow: hidden; background: linear-gradient(180deg, #1b0309, #3a0714);
+    clip-path: polygon(2% 0, 98% 0, 100% 50%, 98% 100%, 2% 100%, 0 50%); }
+  #bt-hp .ghost, #bt-hp .fill { position: absolute; left: 0; top: 0; bottom: 0; width: 100%; }
+  #bt-hp .ghost { background: #ffd0d8; opacity: .75; transition: width .9s .25s ease-out; }
+  #bt-hp .fill { background: linear-gradient(180deg, #ff8796 0%, #ff2d4f 30%, #c3102f 60%, #6d0418 100%); transition: width .2s ease-out; }
+  #bt-hp .facets { position: absolute; inset: 0; pointer-events: none;
+    background: repeating-linear-gradient(118deg, rgba(255,255,255,.22) 0 2px, transparent 2px 46px),
+                repeating-linear-gradient(62deg, rgba(0,0,0,.22) 0 2px, transparent 2px 58px),
+                linear-gradient(180deg, rgba(255,255,255,.55) 0, rgba(255,255,255,.12) 38%, transparent 42%, rgba(0,0,0,.25) 100%); }
+  #bt-hp .glint { position: absolute; top: 0; bottom: 0; width: 14%; left: -20%;
+    background: linear-gradient(100deg, transparent, rgba(255,255,255,.65), transparent); animation: btGlint 3.2s ease-in-out infinite; }
+  @keyframes btGlint { 0% { left: -20%; } 60%, 100% { left: 110%; } }
+  #bt-hp svg.cracks { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  #bt-hp svg.cracks path { stroke: #fff; stroke-width: 1.6; fill: none; opacity: 0; transition: opacity .4s; filter: drop-shadow(0 0 2px #fff); }
+  #bt-hp.hit .rim { animation: btBarHit .25s; }
+  @keyframes btBarHit { 30% { transform: translateX(-4px); } 70% { transform: translateX(4px); } }
+
+  /* Podyum */
+  #bt-podium { position: absolute; inset: 0; z-index: 6; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none; transition: opacity .8s; }
+  #bt-podium.on { opacity: 1; pointer-events: auto; }
+  #bt-podium h2 { margin: 0 0 18px; color: #fff4c2; font-size: clamp(28px, 4.5vw, 60px); font-weight: 900; letter-spacing: 2px;
+    text-shadow: 0 0 22px rgba(255,200,60,.8), 0 4px 0 #6b4200; text-align: center; }
+  #bt-podium .row { display: flex; align-items: flex-end; gap: clamp(10px, 3vw, 40px); }
+  #bt-podium .p { display: flex; flex-direction: column; align-items: center; color: #fff; text-align: center; transform: translateY(40px); opacity: 0;
+    transition: transform .7s cubic-bezier(.2,1.4,.4,1), opacity .5s; }
+  #bt-podium.on .p { transform: none; opacity: 1; }
+  #bt-podium.on .p.s2 { transition-delay: .5s; } #bt-podium.on .p.s1 { transition-delay: 1s; } #bt-podium.on .p.s3 { transition-delay: .25s; }
+  #bt-podium .p img { width: clamp(90px, 11vw, 170px); height: auto; filter: drop-shadow(0 8px 14px rgba(0,0,0,.6)); animation: btBob 2s ease-in-out infinite; }
+  #bt-podium .p.s1 img { width: clamp(120px, 15vw, 230px); }
+  @keyframes btBob { 50% { transform: translateY(-8px); } }
+  #bt-podium .nm { font-weight: 900; font-size: clamp(15px, 1.7vw, 24px); margin: 6px 0 2px; text-shadow: 0 2px 6px #000; max-width: 220px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #bt-podium .dm { font-size: 13px; opacity: .85; margin-bottom: 8px; }
+  #bt-podium .block { width: clamp(110px, 13vw, 200px); border-radius: 10px 10px 0 0; display: flex; align-items: flex-start; justify-content: center;
+    font-size: clamp(30px, 4vw, 56px); font-weight: 900; padding-top: 8px; color: rgba(255,255,255,.9); box-shadow: inset 0 3px 0 rgba(255,255,255,.45), 0 10px 30px rgba(0,0,0,.5); }
+  #bt-podium .s1 .block { height: 150px; background: linear-gradient(180deg, #ffd34d, #c8860a); }
+  #bt-podium .s2 .block { height: 105px; background: linear-gradient(180deg, #e6edf5, #8b98a8); }
+  #bt-podium .s3 .block { height: 75px; background: linear-gradient(180deg, #f0a46a, #9a5524); }
+  #bt-podium button { margin-top: 26px; padding: 12px 26px; border-radius: 999px; border: none; font: inherit; font-weight: 800; font-size: 16px;
+    background: #0ea5e9; color: #fff; cursor: pointer; box-shadow: 0 6px 18px rgba(14,165,233,.45); }
+  #bt-fw { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 5; pointer-events: none; }
+  #battle .msg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 22px; font-weight: 700; z-index: 6; text-align: center; padding: 20px; }
+  `;
+  document.head.appendChild(css);
+
+  // ---- Savaş düğmesi: alttaki araç çubuğunun en solunda ----
+  const startBtn = document.createElement("button");
+  startBtn.className = "btn-icon"; startBtn.id = "battle-btn"; startBtn.textContent = "⚔️";
+  startBtn.title = "Ders Sonu Canavarı: sınıfın puanlarıyla dev ahtapota saldırın!";
+  startBtn.style.cssText = "background:linear-gradient(180deg,#e11d48,#9f1239);box-shadow:0 0 10px rgba(225,29,72,.6)";
+  startBtn.onclick = () => start();
+  const bar0 = document.querySelector("#bottom-bar .panel-box");
+  bar0.insertBefore(startBtn, bar0.firstChild);
+
+  let B = null;                                   // aktif savaşın durumu
+
+  function start() {
+    if (B || typeof app === "undefined" || !app.ready) return;
+    const list = app.fishes.filter(f => f.score > 0);
+    const root = document.createElement("div"); root.id = "battle";
+    document.body.appendChild(root); document.body.classList.add("battle-on");
+    requestAnimationFrame(() => root.classList.add("show"));
+    if (!list.length) {
+      root.innerHTML = `<div class="msg">Savaşmak için önce öğrencilere puan verin 🐟</div><button class="x" title="Kapat">✕</button>`;
+      root.querySelector(".x").onclick = () => end();
+      B = { root, stop: true };
+      return;
+    }
+    root.innerHTML = `
+      <div class="ray" style="left:18%;animation-duration:11s"></div>
+      <div class="ray" style="left:46%;width:10vw;animation-duration:8s;animation-delay:-3s"></div>
+      <div class="ray" style="left:70%;animation-duration:13s;animation-delay:-6s"></div>
+      <svg class="stage" viewBox="-450 -40 1900 1290" preserveAspectRatio="xMidYMid meet"><defs>
+<linearGradient id="bt-skinBase" x1="0" y1="70" x2="0" y2="700" gradientUnits="userSpaceOnUse">
+<stop offset="0" stop-color="#b42d43"/><stop offset=".45" stop-color="#951f33"/><stop offset=".85" stop-color="#7d1829"/><stop offset="1" stop-color="#7d1829"/>
+</linearGradient>
+<radialGradient id="bt-shadeRad" cx="44%" cy="32%" r="68%">
+<stop offset="0" stop-color="#2a0510" stop-opacity="0"/><stop offset=".55" stop-color="#2a0510" stop-opacity="0"/>
+<stop offset="1" stop-color="#2a0510" stop-opacity=".75"/>
+</radialGradient>
+<linearGradient id="bt-fadeG" x1="0" y1="70" x2="0" y2="700" gradientUnits="userSpaceOnUse">
+<stop offset="0" stop-color="#fff"/><stop offset=".7" stop-color="#fff"/><stop offset=".92" stop-color="#000"/>
+</linearGradient>
+<mask id="bt-fadeBottom" maskUnits="userSpaceOnUse" x="0" y="0" width="1000" height="1250">
+<rect x="0" y="0" width="1000" height="1250" fill="url(#bt-fadeG)"/>
+</mask>
+<radialGradient id="bt-iris" cx="50%" cy="45%" r="55%">
+<stop offset="0" stop-color="#ffe1a6"/><stop offset=".35" stop-color="#ffb35c"/><stop offset=".75" stop-color="#e5762a"/><stop offset="1" stop-color="#8f3a12"/>
+</radialGradient>
+<radialGradient id="bt-socket" cx="50%" cy="50%" r="50%">
+<stop offset=".55" stop-color="#1c030a" stop-opacity=".85"/><stop offset="1" stop-color="#1c030a" stop-opacity="0"/>
+</radialGradient>
+<radialGradient id="bt-browG" cx="45%" cy="25%" r="80%">
+<stop offset="0" stop-color="#c13a50"/><stop offset=".6" stop-color="#9a2236"/><stop offset="1" stop-color="#6e1424"/>
+</radialGradient>
+<linearGradient id="bt-lidG" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#9a2236"/><stop offset="1" stop-color="#7a1828"/>
+</linearGradient>
+<filter id="bt-b2" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="2"/></filter>
+<filter id="bt-b6" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="6"/></filter>
+<filter id="bt-b12" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="12"/></filter>
+<clipPath id="bt-headClip"><use href="#bt-skinShape"/></clipPath>
+<clipPath id="bt-eyeClip"><ellipse rx="49" ry="37"/></clipPath>
+</defs>
+<g id="bt-scenery" opacity=".9">
+<g fill="#0e2133" opacity=".55" filter="url(#bt-b6)">
+<path d="M180 1150 L180 760 Q500 560 820 760 L820 1150 L740 1150 L740 790 Q500 650 260 790 L260 1150 Z"/>
+</g>
+<path d="M-460 1120 Q-200 1060 60 1110 Q300 1150 520 1100 Q800 1050 1060 1110 Q1260 1150 1460 1090 L1460 1260 L-460 1260 Z" fill="#071321"/>
+<path d="M-460 1150 Q-150 1110 150 1150 Q500 1190 860 1140 Q1150 1110 1460 1150 L1460 1260 L-460 1260 Z" fill="#050d17"/>
+<g transform="translate(-300 960) rotate(-9)" fill="#10263a">
+<path d="M-150 60 Q-130 150 40 160 L260 160 Q330 150 360 60 Z"/>
+<rect x="-90" y="20" width="360" height="44" rx="6"/>
+<rect x="40" y="-260" width="14" height="290"/><rect x="190" y="-190" width="11" height="215" transform="rotate(14 195 20)"/>
+<path d="M54 -240 L170 -170 L54 -120 Z" opacity=".55"/><path d="M-20 -20 L120 -20 L120 22 L-20 22 Z"/>
+<g fill="#071321"><circle cx="0" cy="100" r="11"/><circle cx="70" cy="104" r="11"/><circle cx="140" cy="106" r="11"/><circle cx="210" cy="104" r="11"/></g>
+<path d="M260 160 L300 120 L330 160 Z" fill="#071321"/>
+</g>
+<g fill="#10263a">
+<path d="M1120 1120 L1120 820 L1135 800 L1160 815 L1178 790 L1190 810 L1190 1120 Z"/>
+<rect x="1108" y="1105" width="94" height="22" rx="3"/>
+<path d="M1260 1130 L1260 930 L1278 945 L1300 920 L1320 940 L1320 1130 Z"/>
+<rect x="1248" y="1115" width="84" height="20" rx="3"/>
+<rect x="1180" y="1090" width="150" height="34" rx="6" transform="rotate(-18 1255 1107)"/>
+</g>
+<g transform="translate(980 1060) rotate(22)" stroke="#132c42" stroke-width="12" fill="none" stroke-linecap="round">
+<path d="M0 -90 L0 40"/><path d="M-50 10 Q0 70 50 10"/><path d="M-28 -60 L28 -60"/><circle cx="0" cy="-104" r="13"/>
+</g>
+<g fill="none" stroke="#0f3a33" stroke-width="10" stroke-linecap="round" opacity=".8">
+<path d="M-80 1130 Q-100 1060 -70 1000 Q-40 940 -70 880"/><path d="M-50 1130 Q-30 1070 -55 1020"/>
+<path d="M1060 1130 Q1040 1070 1070 1010 Q1090 960 1065 910"/><path d="M1400 1120 Q1380 1050 1410 990"/>
+<path d="M640 1150 Q660 1100 635 1060"/>
+</g>
+</g>
+<g id="bt-oct"><g id="bt-body">
+<g id="bt-backArms"></g>
+<g id="bt-frontArms"></g>
+<g id="bt-head">
+<path id="bt-skinShape" d="M500 70 C640 70 715 175 715 300 C715 370 695 420 690 455 C682 530 665 590 640 630
+C615 665 590 690 560 700 C540 686 522 676 500 676 C478 676 460 686 440 700 C410 690 385 665 360 630
+C335 590 318 530 310 455 C305 420 285 370 285 300 C285 175 360 70 500 70 Z" fill="url(#bt-skinBase)"/>
+<g clip-path="url(#bt-headClip)">
+<rect x="270" y="60" width="460" height="660" fill="url(#bt-shadeRad)" mask="url(#bt-fadeBottom)"/>
+<path d="M640 140 C700 200 715 300 700 420" stroke="#ff8a9a" stroke-width="10" fill="none" opacity=".28" filter="url(#bt-b6)"/>
+<ellipse cx="490" cy="230" rx="120" ry="150" fill="#c23a51" opacity=".35" filter="url(#bt-b12)"/>
+<ellipse cx="455" cy="140" rx="70" ry="30" fill="#ff9aa8" opacity=".35" filter="url(#bt-b6)" transform="rotate(-16 455 140)"/>
+<ellipse cx="448" cy="135" rx="34" ry="11" fill="#ffd3d9" opacity=".75" filter="url(#bt-b2)" transform="rotate(-16 448 135)"/>
+<circle cx="525" cy="118" r="6" fill="#ffd3d9" opacity=".7" filter="url(#bt-b2)"/>
+<g id="bt-marks"></g>
+<ellipse id="bt-hitFlash" cx="500" cy="330" rx="85" ry="70" fill="#ffc2cb" opacity="0" filter="url(#bt-b12)"/>
+<rect id="bt-hurtTint" x="270" y="60" width="460" height="660" fill="#3a0010" opacity="0"/>
+<g fill="#4a0b17" opacity=".55" filter="url(#bt-b2)">
+<circle cx="560" cy="170" r="6"/><circle cx="600" cy="230" r="7"/><circle cx="390" cy="230" r="6"/>
+<circle cx="410" cy="280" r="4"/><circle cx="640" cy="200" r="4"/><circle cx="350" cy="320" r="5"/>
+<circle cx="660" cy="320" r="5"/><circle cx="520" cy="210" r="3"/><circle cx="470" cy="240" r="3"/>
+<circle cx="430" cy="190" r="3"/><circle cx="585" cy="300" r="4"/>
+</g>
+<path d="M470 430 C482 480 476 570 462 690 L538 690 C524 570 518 480 530 430 Z" fill="#a8283c" opacity=".55" filter="url(#bt-b6)"/>
+<path d="M462 470 C470 540 462 620 450 690" stroke="#4a0b17" stroke-width="8" fill="none" opacity=".35" filter="url(#bt-b6)"/>
+<path d="M538 470 C530 540 538 620 550 690" stroke="#4a0b17" stroke-width="8" fill="none" opacity=".35" filter="url(#bt-b6)"/>
+<path d="M486 470 C490 530 486 590 478 640" stroke="#e1677a" stroke-width="4" fill="none" opacity=".45" filter="url(#bt-b2)"/>
+<ellipse cx="398" cy="448" rx="70" ry="56" fill="url(#bt-socket)" filter="url(#bt-b6)"/>
+<ellipse cx="602" cy="448" rx="70" ry="56" fill="url(#bt-socket)" filter="url(#bt-b6)"/>
+<g fill="none" stroke-linecap="round">
+<path d="M350 478 C372 510 414 514 442 494" stroke="#2a0510" stroke-width="6" opacity=".55" filter="url(#bt-b2)"/>
+<path d="M354 488 C376 518 414 522 440 504" stroke="#c84a5e" stroke-width="4" opacity=".45" filter="url(#bt-b2)"/>
+<path d="M650 478 C628 510 586 514 558 494" stroke="#2a0510" stroke-width="6" opacity=".55" filter="url(#bt-b2)"/>
+<path d="M646 488 C624 518 586 522 560 504" stroke="#c84a5e" stroke-width="4" opacity=".45" filter="url(#bt-b2)"/>
+</g>
+<ellipse cx="402" cy="425" rx="70" ry="20" fill="#1c030a" opacity=".55" filter="url(#bt-b6)"/>
+<ellipse cx="598" cy="425" rx="70" ry="20" fill="#1c030a" opacity=".55" filter="url(#bt-b6)"/>
+</g>
+<g id="bt-eyeL" transform="translate(398 442)">
+<ellipse rx="49" ry="37" fill="#1a0308"/>
+<ellipse rx="44" ry="32" fill="url(#bt-iris)"/>
+<g class="fibers"></g>
+<ellipse rx="44" ry="32" fill="none" stroke="#5a1f08" stroke-width="5" opacity=".6"/>
+<g class="pupil">
+<rect x="-22" y="-9" width="44" height="18" rx="9" fill="#120206"/>
+<ellipse cx="-12" cy="-14" rx="13" ry="8" fill="#fff" opacity=".85" transform="rotate(-15 -12 -14)"/>
+<circle cx="14" cy="10" r="3.5" fill="#fff" opacity=".7"/>
+</g>
+<ellipse cx="0" cy="-20" rx="40" ry="10" fill="#fff" opacity=".12" filter="url(#bt-b2)"/>
+<g clip-path="url(#bt-eyeClip)">
+<path class="lid" d="M-60 -130 L60 -130 L60 -10 C32 -30 -32 -30 -60 -10 Z" fill="url(#bt-lidG)"/>
+<path class="lidLow" d="M-60 130 L60 130 L60 10 C32 26 -32 26 -60 10 Z" fill="#7d1829" transform="translate(0 34)"/>
+<path class="lidLowEdge" d="M-60 10 C-32 26 32 26 60 10" fill="none" stroke="#c84a5e" stroke-width="3" opacity=".6" transform="translate(0 34)"/>
+</g>
+</g>
+<g id="bt-eyeR" transform="translate(602 442)">
+<ellipse rx="49" ry="37" fill="#1a0308"/>
+<ellipse rx="44" ry="32" fill="url(#bt-iris)"/>
+<g class="fibers"></g>
+<ellipse rx="44" ry="32" fill="none" stroke="#5a1f08" stroke-width="5" opacity=".6"/>
+<g class="pupil">
+<rect x="-22" y="-9" width="44" height="18" rx="9" fill="#120206"/>
+<ellipse cx="-12" cy="-14" rx="13" ry="8" fill="#fff" opacity=".85" transform="rotate(-15 -12 -14)"/>
+<circle cx="14" cy="10" r="3.5" fill="#fff" opacity=".7"/>
+</g>
+<ellipse cx="0" cy="-20" rx="40" ry="10" fill="#fff" opacity=".12" filter="url(#bt-b2)"/>
+<g clip-path="url(#bt-eyeClip)">
+<path class="lid" d="M-60 -130 L60 -130 L60 -10 C32 -30 -32 -30 -60 -10 Z" fill="url(#bt-lidG)"/>
+<path class="lidLow" d="M-60 130 L60 130 L60 10 C32 26 -32 26 -60 10 Z" fill="#7d1829" transform="translate(0 34)"/>
+<path class="lidLowEdge" d="M-60 10 C-32 26 32 26 60 10" fill="none" stroke="#c84a5e" stroke-width="3" opacity=".6" transform="translate(0 34)"/>
+</g>
+</g>
+<path d="M336 432 C326 386 362 358 405 360 C442 363 468 390 482 436 C458 420 434 411 409 410 C380 410 356 420 336 432 Z" fill="url(#bt-browG)"/>
+<path d="M664 432 C674 386 638 358 595 360 C558 363 532 390 518 436 C542 420 566 411 591 410 C620 410 644 420 664 432 Z" fill="url(#bt-browG)"/>
+<path d="M346 422 C368 412 392 408 412 409 C438 410 460 420 478 432" stroke="#3a0812" stroke-width="4" fill="none" opacity=".55" filter="url(#bt-b2)"/>
+<path d="M654 422 C632 412 608 408 588 409 C562 410 540 420 522 432" stroke="#3a0812" stroke-width="4" fill="none" opacity=".55" filter="url(#bt-b2)"/>
+<ellipse cx="392" cy="376" rx="30" ry="9" fill="#ffc0c9" opacity=".55" filter="url(#bt-b2)" transform="rotate(-8 392 376)"/>
+<ellipse cx="608" cy="376" rx="30" ry="9" fill="#ffc0c9" opacity=".55" filter="url(#bt-b2)" transform="rotate(8 608 376)"/>
+<path d="M318 520 C305 420 285 370 285 300 C285 175 360 70 500 70 C640 70 715 175 715 300 C715 370 695 420 682 520"
+fill="none" stroke="#2a0510" stroke-width="4" opacity=".55" stroke-linecap="round"/>
+</g>
+<g id="bt-reachLayer"></g>
+</g></g>
+<g id="bt-fxLayer"></g>
+<g id="bt-fishLayer"></g>
+<g id="bt-dmgLayer"></g></svg>
+      <div class="fog" style="bottom:-8%"></div><div class="fog" style="top:30%;animation-duration:30s;opacity:.35"></div>
+      <div class="banner">⚔️ DERS SONU CANAVARI<small>Derinliklerden bir şey yaklaşıyor…</small></div>
+      <div id="bt-hp"><div class="lbl"><span>🐙 Derinlik Canavarı</span><span class="num"></span></div>
+        <div class="rim"><div class="bar"><div class="ghost"></div><div class="fill"></div><div class="facets"></div><div class="glint"></div>
+          <svg class="cracks" viewBox="0 0 1000 34" preserveAspectRatio="none">
+            <path d="M880 0 L870 12 L884 20 L874 34"/><path d="M760 34 L772 20 L760 12 L768 0"/><path d="M640 0 L652 14 L640 24 L648 34"/>
+            <path d="M520 34 L508 22 L522 14 L512 0"/><path d="M400 0 L410 10 L398 22 L410 34"/><path d="M280 34 L292 22 L280 12 L290 0"/>
+            <path d="M160 0 L150 14 L164 22 L154 34"/><path d="M60 34 L70 20 L58 10 L68 0"/>
+          </svg></div></div></div>
+      <canvas id="bt-fw"></canvas>
+      <div id="bt-podium"></div>
+      <button class="x" title="Savaştan çık">✕</button>`;
+    root.querySelector(".x").onclick = () => end();
+    for (let i = 0; i < 26; i++) {
+      const d = document.createElement("div"); d.className = "dust"; const s = 2 + Math.random() * 4;
+      Object.assign(d.style, { width: s + "px", height: s + "px", left: Math.random() * 100 + "%", top: 100 + Math.random() * 10 + "%",
+        animationDuration: 12 + Math.random() * 14 + "s", animationDelay: -Math.random() * 20 + "s" });
+      root.appendChild(d);
+    }
+    const $ = id => root.querySelector("#" + id);
+    const total = list.reduce((t, f) => t + f.score, 0);
+    B = { root, $, maxHp: total * 10, hp: total * 10, t: 0, phase: "intro", phaseT: 0, last: 0,
+          shake: 0, flashV: 0, squint: 0, hurt: 0, marks: [], fx: [], stats: new Map(), fwParts: [], fwNext: 0 };
+    setupOctopus();
+    setupFish(list);
+    updateHp(true);
+    setTimeout(() => B && root.querySelector(".banner").classList.add("on"), 500);
+    setTimeout(() => B && root.querySelector(".banner").classList.remove("on"), 3300);
+    B.raf = requestAnimationFrame(frame);
+  }
+
+  function end() {
+    if (!B) return;
+    cancelAnimationFrame(B.raf);
+    const r = B.root; B = null;
+    r.classList.remove("show");
+    setTimeout(() => { r.remove(); document.body.classList.remove("battle-on"); }, 600);
+  }
+  document.addEventListener("keydown", e => { if (B && e.key === "Escape") { e.stopPropagation(); end(); } }, true);
+
+  // ---------------- Ahtapot ----------------
+  function setupOctopus() {
+    const $ = B.$;
+    B.oct = $("bt-oct"); B.body = $("bt-body");
+    const layers = { back: $("bt-backArms"), front: $("bt-frontArms") };
+    B.layers = layers;
+    const defs = B.root.querySelector("defs");
+    B.root.querySelectorAll(".fibers").forEach(g => {
+      for (let i = 0; i < 36; i++) {
+        const a = i / 36 * Math.PI * 2, r1 = 14 + Math.random() * 4, r2 = 30 + Math.random() * 6;
+        g.appendChild(mk("line", { x1: (Math.cos(a) * r1 * 1.35).toFixed(1), y1: (Math.sin(a) * r1).toFixed(1),
+          x2: (Math.cos(a) * r2 * 1.35).toFixed(1), y2: (Math.sin(a) * r2 * .98).toFixed(1), stroke: i % 2 ? "#ffe2a8" : "#b5521a", "stroke-width": 1.4, opacity: .45 }));
+      }
+    });
+    B.arms = [
+      { x: 395, y: 560, a: 190, len: 470, w: 74, curl: 290,  layer: "back" },
+      { x: 605, y: 560, a: -10, len: 470, w: 74, curl: -290, layer: "back" },
+      { x: 410, y: 600, a: 160, len: 560, w: 78, curl: -250, layer: "back" },
+      { x: 590, y: 600, a: 20,  len: 560, w: 78, curl: 250,  layer: "back" },
+      { x: 425, y: 645, a: 125, len: 600, w: 82, curl: 230,  layer: "front" },
+      { x: 575, y: 645, a: 55,  len: 600, w: 82, curl: -230, layer: "front" },
+      { x: 468, y: 660, a: 100, len: 560, w: 86, curl: -240, layer: "front" },
+      { x: 532, y: 660, a: 80,  len: 560, w: 86, curl: 240,  layer: "front" }
+    ];
+    B.arms.forEach((A, i) => {
+      A.phase = i * 1.37; A.speed = .5 + (i % 3) * .1; A.k = 0; A.reach = null;
+      const back = A.layer === "back";
+      A.grad = mk("linearGradient", { id: "bt-ag" + i, gradientUnits: "userSpaceOnUse" });
+      A.grad.append(mk("stop", { offset: 0, "stop-color": "#7d1829" }), mk("stop", { offset: .3, "stop-color": back ? "#701526" : "#7d1829" }),
+                    mk("stop", { offset: 1, "stop-color": back ? "#3a0914" : "#4e0e1b" }));
+      defs.appendChild(A.grad);
+      const g = mk("g", {});
+      A.shape = mk("path", { fill: `url(#bt-ag${i})` });
+      A.dark = mk("path", { fill: "none", stroke: "#2a0510", "stroke-linecap": "round", opacity: .35, filter: "url(#bt-b6)" });
+      A.band = mk("path", { fill: back ? "#8c4655" : "#a85868", opacity: .9 });
+      A.shine = mk("path", { fill: "none", stroke: back ? "#a8344a" : "#e2687c", "stroke-linecap": "round", opacity: .55, filter: "url(#bt-b2)" });
+      A.cups = mk("g", {});
+      for (let k = 0; k < 11; k++) { const c = mk("g", {}); c.append(mk("circle", { fill: back ? "#b77a86" : "#d495a0" }), mk("circle", { fill: "#6d2232" })); A.cups.appendChild(c); }
+      g.append(A.shape, A.dark, A.band, A.shine, A.cups);
+      layers[A.layer].appendChild(g); A.g = g;
+    });
+    B.lids = B.root.querySelectorAll(".lid"); B.lowLids = B.root.querySelectorAll(".lidLow, .lidLowEdge"); B.pupils = B.root.querySelectorAll(".pupil");
+    B.flash = $("bt-hitFlash"); B.tint = $("bt-hurtTint"); B.marksG = $("bt-marks");
+    B.fxLayer = $("bt-fxLayer"); B.fishLayer = $("bt-fishLayer"); B.dmgLayer = $("bt-dmgLayer");
+    B.blink = { next: 2500, t: -1 }; B.look = [0, 0]; B.lookTo = [0, 0]; B.nextLook = 1500;
+    B.octTf = [0, 0, 1];
+  }
+
+  function drawArm(A, t) {
+    const N = 44, pts = [];
+    let x = A.x, y = A.y, ang = A.a * Math.PI / 180;
+    const step = A.len / N, curl = A.curl * Math.PI / 180;
+    for (let i = 0; i <= N; i++) {
+      const u = i / N; pts.push([x, y, u]);
+      const wave = Math.sin(t * A.speed * 2 - u * 5 + A.phase) * .045 * (.2 + u) + Math.sin(t * 30 + A.phase * 3 - u * 6) * .012 * B.hurt * u;
+      const breathe = Math.sin(t * .9 + A.phase) * .25;
+      ang += curl * (1 + breathe * u + B.hurt * .1) * 3 * u * u / N + wave;
+      x += Math.cos(ang) * step; y += Math.sin(ang) * step;
+    }
+    if (A.k > 0) {
+      const tx = A.tgt[0] - A.x, ty = A.tgt[1] - A.y, dist = Math.hypot(tx, ty) || 1, nx = -ty / dist, ny = tx / dist;
+      for (let i = 0; i <= N; i++) {
+        const u = i / N, bend = Math.sin(u * Math.PI) * dist * .18 * A.bendSign;
+        pts[i][0] += (A.x + tx * u + nx * bend - pts[i][0]) * A.k; pts[i][1] += (A.y + ty * u + ny * bend - pts[i][1]) * A.k;
+      }
+    }
+    const mid = pts[Math.round(N * .7)];
+    A.grad.setAttribute("x1", A.x); A.grad.setAttribute("y1", A.y); A.grad.setAttribute("x2", mid[0].toFixed(1)); A.grad.setAttribute("y2", mid[1].toFixed(1));
+    const L = [], R = [], side = A.curl > 0 ? 1 : -1;
+    for (let i = 0; i <= N; i++) {
+      const [px, py, u] = pts[i], [qx, qy] = pts[Math.min(N, i + 1)], [ox, oy] = pts[Math.max(0, i - 1)];
+      let dx = qx - ox, dy = qy - oy; const d = Math.hypot(dx, dy) || 1; dx /= d; dy /= d;
+      const w = A.w * Math.pow(1 - u, .9) / 2 + 2.5;
+      L.push([px - dy * w, py + dx * w, -dy, dx, w]); R.push([px + dy * w, py - dx * w, dy, -dx, w]);
+    }
+    const f = p => p[0].toFixed(1) + " " + p[1].toFixed(1);
+    let dStr = "M" + f(L[0]);
+    for (let i = 1; i <= N; i++) dStr += " L" + f(L[i]);
+    dStr += ` Q${f(pts[N])} ${f(R[N])}`;
+    for (let i = N - 1; i >= 0; i--) dStr += " L" + f(R[i]);
+    A.shape.setAttribute("d", dStr + " Z");
+    const inner = side > 0 ? R : L, outer = side > 0 ? L : R, from = Math.round(N * .26);
+    let ds = "";
+    for (let i = from - 4; i < N - 2; i++) { const p = inner[i]; ds += (ds ? " L" : "M") + f([p[0] - p[2] * p[4] * .15, p[1] - p[3] * p[4] * .15]); }
+    A.dark.setAttribute("d", ds); A.dark.setAttribute("stroke-width", (A.w * .22).toFixed(1));
+    let b = "M" + f(inner[from]);
+    for (let i = from + 1; i <= N; i++) b += " L" + f(inner[i]);
+    for (let i = N; i >= from; i--) { const p = inner[i], k = .75 * Math.min(1, (i - from) / 7); b += " L" + f([p[0] - p[2] * p[4] * k, p[1] - p[3] * p[4] * k]); }
+    A.band.setAttribute("d", b + " Z");
+    let s = "";
+    for (let i = 3; i < N * .8; i++) { const p = outer[i]; s += (s ? " L" : "M") + f([p[0] - p[2] * p[4] * .38, p[1] - p[3] * p[4] * .38]); }
+    A.shine.setAttribute("d", s); A.shine.setAttribute("stroke-width", (A.w * .12).toFixed(1));
+    [...A.cups.children].forEach((c, k) => {
+      const i = from + 2 + Math.round(k * (N - from - 4) / 11), p = inner[Math.min(N, i)], r = Math.max(2, p[4] * .42);
+      const cx = p[0] - p[2] * p[4] * .38, cy = p[1] - p[3] * p[4] * .38, [o, ii] = c.children;
+      o.setAttribute("cx", cx.toFixed(1)); o.setAttribute("cy", cy.toFixed(1)); o.setAttribute("r", r.toFixed(1));
+      ii.setAttribute("cx", cx.toFixed(1)); ii.setAttribute("cy", cy.toFixed(1)); ii.setAttribute("r", (r * .4).toFixed(1));
+    });
+  }
+
+  // Ekran (sahne) koordinatını ahtapotun kendi koordinatına çevir
+  const toOct = (x, y) => [(x - B.octTf[0]) / B.octTf[2], (y - B.octTf[1]) / B.octTf[2]];
+  const fromOct = (x, y) => [x * B.octTf[2] + B.octTf[0], y * B.octTf[2] + B.octTf[1]];
+
+  // ---------------- Balıklar ----------------
+  function setupFish(list) {
+    const n = list.length, left = [], right = [];
+    list.forEach((f, i) => (i % 2 ? right : left).push(f));
+    const slots = (arr, sideX) => arr.map((f, i) => {
+      const rows = Math.ceil(arr.length / 3), col = i % 3, row = Math.floor(i / 3);
+      return [sideX + (sideX < 500 ? -1 : 1) * col * 130 + (Math.random() - .5) * 40, 380 + (row + .5) * (720 / Math.max(rows, 1)) + (Math.random() - .5) * 30];
+    });
+    const ls = slots(left, 60), rs = slots(right, 940);
+    B.fish = [];
+    const size = n > 24 ? 1.15 : n > 14 ? 1.35 : 1.6;
+    [[left, ls, 1], [right, rs, -1]].forEach(([arr, sl, face]) => arr.forEach((st, i) => {
+      const g = mk("g", { opacity: 0 }), inner = mk("g", {});
+      const img = mk("image", { href: app.getFishSprite(st), x: -70, y: -50, width: 140, height: 100, preserveAspectRatio: "xMidYMid meet" });
+      const flipG = mk("g", {}); flipG.appendChild(img);
+      const label = mk("text", { y: 70, "text-anchor": "middle", "font-size": 22, "font-weight": 800, fill: "#fff", stroke: "#000", "stroke-width": 4,
+        "paint-order": "stroke", style: "font-family:inherit" });
+      label.textContent = st.name;
+      inner.append(flipG); g.append(inner, label); B.fishLayer.appendChild(g);
+      const home = sl[i];
+      const F = { st, g, inner, flipG, label, home, x: home[0] + (face > 0 ? -500 : 500), y: home[1] + 200, s: size, base: size, face, rot: 0,
+                  state: "enter", t: 0, dur: 1.6 + Math.random() * .8, delay: Math.random() * .8 };
+      B.fish.push(F); B.stats.set(st, { dmg: 0, hits: 0 });
+    }));
+  }
+
+  function setPose(F) {
+    F.g.setAttribute("transform", `translate(${F.x.toFixed(1)} ${F.y.toFixed(1)}) rotate(${F.rot.toFixed(1)}) scale(${F.s.toFixed(3)})`);
+    F.flipG.setAttribute("transform", F.face > 0 ? "scale(-1 1)" : "");           // sprite'lar normalde sola bakar
+    F.inner.setAttribute("transform", `rotate(${(Math.sin(F.t * 16 + F.home[0]) * 3).toFixed(1)})`);
+  }
+
+  function attackTarget() {
+    const [x, y] = fromOct(500 + (Math.random() - .5) * 260, 300 + Math.random() * 230);
+    return [x, y];
+  }
+
+  function updateFish(F, dt) {
+    F.t += dt;
+    if (F.delay > 0) { F.delay -= dt; F.t = 0; return; }
+    const p = Math.min(1, F.t / F.dur);
+    F.g.setAttribute("opacity", 1);
+    if (F.state === "enter") {                                  // kenarlara toplanır, ahtapota bakar
+      const e = easeOut(p), sx = F.home[0] + (F.face > 0 ? -500 : 500), sy = F.home[1] + 200;
+      F.x = sx + (F.home[0] - sx) * e; F.y = sy + (F.home[1] - sy) * e;
+      if (p >= 1) { F.state = "wait"; F.t = 0; F.dur = 1e9; }
+    } else if (F.state === "wait") {
+      F.y = F.home[1] + Math.sin(F.t * 2 + F.home[0]) * 6;
+      if (B.phase === "fight" && Math.random() < dt * .7) { F.state = "go"; F.t = 0; F.dur = 2 + Math.random() * .9; F.S = [F.x, F.y]; F.T = attackTarget(); }
+    } else if (F.state === "go") {                              // derinliğe doğru yavaş gider, küçülür
+      const e = ease(p);
+      F.x = F.S[0] + (F.T[0] - F.S[0]) * e; F.y = F.S[1] + (F.T[1] - F.S[1]) * e + Math.sin(F.t * 6) * 6;
+      F.s = F.base * (1 - .5 * e); F.face = F.T[0] >= F.S[0] ? 1 : -1;
+      if (p >= 1) { hit(F); F.state = "back"; F.t = 0; F.dur = .8; F.T = [F.x, F.y]; }
+    } else if (F.state === "back") {                            // hızlı döner, büyür
+      const e = easeOut(p);
+      F.x = F.T[0] + (F.home[0] - F.T[0]) * e; F.y = F.T[1] + (F.home[1] - F.T[1]) * e;
+      F.s = F.base * (.5 + .5 * e); F.face = F.home[0] < 500 ? 1 : -1;
+      if (p >= 1) { F.state = "wait"; F.t = 0; F.dur = 1e9; F.rot = 0; }
+    } else if (F.state === "knock") {                           // kolla vurulunca savrulur
+      F.x += F.vx * dt; F.y += F.vy * dt; F.vx *= .96; F.vy *= .96; F.rot += F.spin * dt; F.s = Math.min(F.base, F.s + dt * .5);
+      if (p >= 1) { F.state = "back"; F.T = [F.x, F.y]; F.t = 0; F.dur = .8; F.rot = 0; }
+    }
+    setPose(F);
+  }
+
+  function hit(F) {
+    if (B.phase !== "fight") return;
+    const dmg = F.st.score, s = B.stats.get(F.st);
+    s.dmg += dmg; s.hits++;
+    B.hp = Math.max(0, B.hp - dmg);
+    B.shake = .3; B.flashV = .5; B.hurt = 1;
+    const [hx, hy] = toOct(F.x, F.y);
+    B.flash.setAttribute("cx", hx.toFixed(0)); B.flash.setAttribute("cy", hy.toFixed(0));
+    bruise(hx, hy); splash(F.x, F.y, "#ffd6dc"); dmgText(F.x, F.y, dmg);
+    updateHp();
+    try { app.audio.playDrop(); } catch (e) {}
+    if (B.hp <= 0) return win();
+    if (Math.random() < .25) counter(F);
+  }
+
+  function dmgText(x, y, n) {
+    const t = mk("text", { x, y, "text-anchor": "middle", "font-size": 46, "font-weight": 900, fill: "#ff3b55", stroke: "#3a0010", "stroke-width": 7,
+      "paint-order": "stroke", style: "font-family:inherit" });
+    t.textContent = "-" + n; B.dmgLayer.appendChild(t);
+    B.fx.push({ el: t, x, y, vx: (Math.random() - .5) * 60, vy: -160, life: 1, age: 0, text: true });
+  }
+
+  function splash(x, y, color) {
+    for (let k = 0; k < 9; k++) {
+      const c = mk("circle", { cx: x, cy: y, r: 4 + Math.random() * 5, fill: color, opacity: .9 });
+      B.fxLayer.appendChild(c);
+      const a = Math.random() * Math.PI * 2, v = 120 + Math.random() * 200;
+      B.fx.push({ el: c, x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: .5 + Math.random() * .3, age: 0 });
+    }
+  }
+
+  function bruise(x, y) {
+    const g = mk("g", { transform: `translate(${x.toFixed(0)} ${y.toFixed(0)}) rotate(${(Math.random() * 360).toFixed(0)})` });
+    g.append(mk("ellipse", { rx: 34, ry: 24, fill: "#3a0516", opacity: .55, filter: "url(#bt-b6)" }));
+    for (let k = 0; k < 3; k++)
+      g.append(mk("path", { d: `M${-16 + k * 4} ${-10 + k * 9} l${24 + k * 3} ${-6 + k * 2}`, stroke: "#ffb0bd", "stroke-width": 3, "stroke-linecap": "round", opacity: .8, filter: "url(#bt-b2)" }));
+    B.marksG.appendChild(g); B.marks.push({ g, age: 0 });
+    if (B.marks.length > 8) B.marks.shift().g.remove();
+  }
+
+  function counter(F) {
+    const [bx] = toOct(F.x, F.y), left = bx < 500;
+    const free = B.arms.filter(A => !A.reach && (A.x < 500) === left);
+    if (!free.length) return;
+    const A = free[Math.floor(Math.random() * free.length)];
+    A.reach = { F, t: 0, hit: false }; A.bendSign = bx < A.x ? 1 : -1;
+    B.$("bt-reachLayer").appendChild(A.g);
+  }
+
+  function updateReach(A, dt) {
+    const R = A.reach; if (!R) { A.k = 0; return; }
+    R.t += dt; const t = R.t;
+    A.k = t < .28 ? easeOut(t / .28) : t < .4 ? 1 : Math.max(0, 1 - ease((t - .4) / .55));
+    A.tgt = toOct(R.F.x, R.F.y);
+    if (!R.hit && t >= .28) {
+      R.hit = true;
+      const F = R.F, [cx, cy] = fromOct(500, 380), dx = F.x - cx, dy = F.y - cy, d = Math.hypot(dx, dy) || 1;
+      F.state = "knock"; F.t = 0; F.dur = 1; F.vx = dx / d * 700; F.vy = dy / d * 700 - 150; F.spin = (Math.random() < .5 ? -1 : 1) * 720;
+      splash(F.x, F.y, "#ffffff");
+    }
+    if (t > .95) { A.reach = null; B.layers[A.layer].appendChild(A.g); }
+  }
+
+  // ---------------- Can barı ----------------
+  function updateHp(first) {
+    const r = B.hp / B.maxHp, hpEl = B.$("bt-hp");
+    hpEl.querySelector(".fill").style.width = (r * 100) + "%";
+    hpEl.querySelector(".ghost").style.width = (r * 100) + "%";
+    hpEl.querySelector(".num").textContent = `${B.hp} / ${B.maxHp}`;
+    hpEl.querySelectorAll(".cracks path").forEach((p, i) => { p.style.opacity = (1 - r) > (i + 1) / 9 ? .85 : 0; });
+    if (!first) { hpEl.classList.remove("hit"); void hpEl.offsetWidth; hpEl.classList.add("hit"); }
+  }
+
+  // ---------------- Bitiş ----------------
+  function win() {
+    B.phase = "flee"; B.phaseT = 0;
+    B.fish.forEach(F => { if (F.state === "go" || F.state === "wait") { F.state = "back"; F.T = [F.x, F.y]; F.t = 0; F.dur = .8; } });
+    B.arms.forEach(A => { if (A.reach) { A.reach = null; B.layers[A.layer].appendChild(A.g); } });
+    setTimeout(() => B && B.$("bt-hp").classList.remove("on"), 600);
+  }
+
+  function podium() {
+    B.phase = "podium";
+    const top = [...B.stats.entries()].sort((a, b) => b[1].dmg - a[1].dmg || b[1].hits - a[1].hits).slice(0, 3);
+    const order = [[top[1], "s2", 2], [top[0], "s1", 1], [top[2], "s3", 3]].filter(x => x[0]);
+    const el = B.$("bt-podium");
+    el.innerHTML = `<h2>🎉 Canavar Kaçtı! 🎉</h2><div class="row">${order.map(([[st, s], cls, n]) =>
+      `<div class="p ${cls}"><img src="${app.getFishSprite(st)}" alt=""><div class="nm">${esc(st.name)}</div>
+       <div class="dm">${s.dmg} hasar · ${s.hits} vuruş</div><div class="block">${n}</div></div>`).join("")}</div>
+      <button>🐠 Akvaryuma Dön</button>`;
+    el.querySelector("button").onclick = () => end();
+    requestAnimationFrame(() => el.classList.add("on"));
+    B.fish.forEach(F => F.g.setAttribute("opacity", 0));
+    try { app.audio.playWinnerFanfare(); } catch (e) {}
+    const cv = B.$("bt-fw"); cv.width = innerWidth; cv.height = innerHeight; B.fwCtx = cv.getContext("2d");
+  }
+
+  function fireworks(dt) {
+    const ctx = B.fwCtx; if (!ctx) return;
+    B.fwNext -= dt;
+    if (B.fwNext <= 0) {
+      B.fwNext = .35 + Math.random() * .5;
+      const x = innerWidth * (.15 + Math.random() * .7), y = innerHeight * (.12 + Math.random() * .35), hue = Math.random() * 360;
+      for (let i = 0; i < 70; i++) {
+        const a = Math.random() * Math.PI * 2, v = 80 + Math.random() * 260;
+        B.fwParts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 1 + Math.random() * .6, age: 0, hue: hue + Math.random() * 40 });
+      }
+    }
+    ctx.globalCompositeOperation = "destination-out"; ctx.fillStyle = "rgba(0,0,0,.25)"; ctx.fillRect(0, 0, innerWidth, innerHeight);
+    ctx.globalCompositeOperation = "lighter";
+    for (let i = B.fwParts.length - 1; i >= 0; i--) {
+      const P = B.fwParts[i]; P.age += dt; P.vy += 140 * dt; P.vx *= .985; P.vy *= .985; P.x += P.vx * dt; P.y += P.vy * dt;
+      const a = Math.max(0, 1 - P.age / P.life);
+      ctx.fillStyle = `hsla(${P.hue},100%,65%,${a})`; ctx.beginPath(); ctx.arc(P.x, P.y, 2.6, 0, Math.PI * 2); ctx.fill();
+      if (P.age >= P.life) B.fwParts.splice(i, 1);
+    }
+  }
+
+  // ---------------- Ana döngü ----------------
+  function frame(ms) {
+    if (!B) return;
+    B.raf = requestAnimationFrame(frame);
+    const dt = Math.min(.05, (ms - B.last) / 1000 || 0); B.last = ms;
+    B.t += dt; B.phaseT += dt;
+    const t = B.t;
+
+    // Ahtapotun konumu/boyutu: girişte derinlikten büyüyerek gelir, can azaldıkça %50'ye küçülür, sonda kaçar
+    const hpR = B.hp / B.maxHp;
+    let sc = .5 + .5 * hpR, op = 1, blur = 0, oy = 0;
+    if (B.phase === "intro") {
+      const p = Math.min(1, B.phaseT / 3.6), e = ease(p);
+      sc = .18 + .82 * e; op = Math.min(1, p * 1.6); blur = (1 - e) * 10; oy = -120 * (1 - e);
+      if (p >= 1) { B.phase = "fight"; B.phaseT = 0; B.$("bt-hp").classList.add("on"); }
+    } else if (B.phase === "flee" || B.phase === "podium") {
+      const p = Math.min(1, B.phaseT / 2.2), e = ease(p);
+      sc = .5 * (1 - .8 * e); op = 1 - e; blur = e * 8; oy = -160 * e;
+      if (B.phase === "flee" && B.phaseT > 2.4) podium();
+    }
+    B.sc = sc;
+    const br = 1 + Math.sin(t * 1.3) * .012, fl = Math.sin(t * .8) * 10;
+    B.shake = Math.max(0, B.shake - dt); B.flashV = Math.max(0, B.flashV - dt * 2.2);
+    const sx = B.shake ? (Math.random() - .5) * 18 * B.shake / .25 : 0, sy = B.shake ? (Math.random() - .5) * 10 * B.shake / .25 : 0;
+    const S = sc * br, cx = 500, cy = 420;
+    B.octTf = [cx - cx * S + sx, cy - cy * S + fl + oy + sy, S];
+    B.body.setAttribute("transform", `translate(${B.octTf[0].toFixed(1)} ${B.octTf[1].toFixed(1)}) scale(${S.toFixed(4)})`);
+    B.oct.setAttribute("opacity", op.toFixed(2));
+    B.oct.style.filter = blur > .3 ? `blur(${blur.toFixed(1)}px)` : "";
+
+    if (B.phase !== "podium") B.fish.forEach(F => updateFish(F, dt));
+    B.arms.forEach(A => updateReach(A, dt));
+    if (op > 0) B.arms.forEach(A => drawArm(A, t));
+
+    B.hurt = Math.max(0, B.hurt - dt * 1.6);
+    B.flash.setAttribute("opacity", B.flashV.toFixed(2));
+    B.tint.setAttribute("opacity", (B.hurt * .22).toFixed(2));
+    for (let i = B.marks.length - 1; i >= 0; i--) {
+      const M = B.marks[i]; M.age += dt; M.g.setAttribute("opacity", Math.max(0, 1 - M.age / 2.5).toFixed(2));
+      if (M.age > 2.5) { M.g.remove(); B.marks.splice(i, 1); }
+    }
+    for (let i = B.fx.length - 1; i >= 0; i--) {
+      const P = B.fx[i]; P.age += dt; P.x += P.vx * dt; P.y += P.vy * dt;
+      if (P.text) { P.vy *= .94; P.el.setAttribute("x", P.x.toFixed(1)); P.el.setAttribute("y", P.y.toFixed(1)); }
+      else { P.vx *= .9; P.vy *= .9; P.el.setAttribute("cx", P.x.toFixed(1)); P.el.setAttribute("cy", P.y.toFixed(1)); }
+      P.el.setAttribute("opacity", Math.max(0, 1 - P.age / P.life).toFixed(2));
+      if (P.age >= P.life) { P.el.remove(); B.fx.splice(i, 1); }
+    }
+
+    // Gözler
+    const bl = B.blink;
+    if (bl.t < 0 && t * 1000 > bl.next) bl.t = t * 1000;
+    let close = 0;
+    if (bl.t >= 0) { const k = (t * 1000 - bl.t) / 220; close = k < .5 ? k * 2 : Math.max(0, 2 - k * 2); if (k >= 1) { bl.t = -1; bl.next = t * 1000 + 2500 + Math.random() * 3500; } }
+    B.squint += ((B.arms.some(A => A.k > .2) ? 1 : 0) - B.squint) * .2;
+    const h = Math.min(1, B.hurt * 1.6);
+    const up = Math.max(close * 48, B.squint * 14, h * 26), low = 34 - Math.max(close * 40, h * 52);
+    B.lids.forEach(l => l.setAttribute("transform", `translate(0 ${up.toFixed(1)})`));
+    B.lowLids.forEach(l => l.setAttribute("transform", `translate(0 ${low.toFixed(1)})`));
+    if (t * 1000 > B.nextLook) { B.lookTo = [(Math.random() - .5) * 16, (Math.random() - .5) * 8]; B.nextLook = t * 1000 + 1200 + Math.random() * 2500; }
+    B.look = B.look.map((v, i) => v + (B.lookTo[i] - v) * .06);
+    const jit = B.hurt ? (Math.random() - .5) * 6 * B.hurt : 0;
+    B.pupils.forEach(p => p.setAttribute("transform", `translate(${(B.look[0] + jit).toFixed(1)} ${B.look[1].toFixed(1)}) scale(${(1 - B.hurt * .45).toFixed(2)})`));
+
+    if (B.phase === "podium") fireworks(dt);
+  }
+})();
+</script>
 </body>
 </html>
