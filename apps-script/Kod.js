@@ -1,6 +1,8 @@
 // Eğitici Balık — kayıt sunucusu (Google Apps Script)
 // Her hesap = tabloda bir sekme. Düzen:
 //   A1:B4  → PIN, Son kayıt (gün.ay.yıl saat:dakika), Oturum kodu, Ayarlar kodu
+//   D1:E2  → Açılış (hesabın açıldığı gün), Üyelik (boş = 30 gün ücretsiz deneme, "Pro" = süresiz)
+//            Deneme süresi dolmuş ve Pro değilse kayıt kabul edilmez (okuma serbest, veri silinmez).
 //   Ayarlar: sıra eşiği (0 = Tümü) - tema - mouse kilidi - sınıf puan eşiği - sıralama   (ör. 5-0-0-10-3)
 //   Satır 6 → sınıf adları (her sınıf kendi bloğunda: 3 sütun + 1 boş sütun, soldan sağa)
 //   Satır 7 → Sınıf-Ad | Puan | Model   (her blokta)
@@ -12,6 +14,7 @@ const ANA = 'Sayfa1';
 const BLOK = 4;            // sınıf başına sütun sayısı (3 veri + 1 boşluk)
 const ILK_SATIR = 8;       // öğrencilerin başladığı satır
 const MAKS_SINIF = 50, MAKS_OGRENCI = 500;
+const DENEME_GUN = 30;
 
 function out_(o) {
   return ContentService.createTextOutput(JSON.stringify(o))
@@ -22,6 +25,25 @@ function ad_(a) {
 }
 const duz_ = v => String(v === undefined || v === null ? '' : v).replace(/^'/, '');
 const tarih_ = () => Utilities.formatDate(new Date(), 'Europe/Istanbul', 'dd.MM.yyyy HH:mm');
+const gun_ = () => Utilities.formatDate(new Date(), 'Europe/Istanbul', 'dd.MM.yyyy');
+
+// Üyelik durumu → {pro, kalan}. Açılış tarihi boşsa bugün yazılır (deneme bugünden başlar).
+function uyelik_(s) {
+  const v = s.getRange(1, 4, 2, 2).getValues();
+  let acilis = v[0][1], d = null;
+  if (acilis instanceof Date) d = acilis;
+  else {
+    const m = String(acilis || '').match(/(\d{1,2})[.\/](\d{1,2})[.\/](\d{4})/);
+    if (m) d = new Date(+m[3], +m[2] - 1, +m[1]);
+  }
+  if (!d) {
+    s.getRange(1, 4, 2, 2).setValues([['Açılış', "'" + gun_()], ['Üyelik', v[1][1]]]);
+    d = new Date();
+  }
+  const pro = /^\s*pro\s*$/i.test(String(v[1][1] || ''));
+  const gecen = Math.floor((Date.now() - d.getTime()) / 864e5);
+  return { pro: pro, kalan: Math.max(0, DENEME_GUN - gecen) };
+}
 
 // Sekmeyi yalnızca gereken boyuta getirir (boş ızgara hücreleri tablonun 10 milyon hücre sınırını yer)
 function boyut_(s, satir, sutun) {
@@ -50,9 +72,11 @@ function grupla_(rows, names) {
 // Sekmenin tamamını yazar. Kalınlık her sınıf için tek seferde (toplu) verilir.
 function yaz_(s, pin, tok, ayar, siniflar) {
   const enCok = siniflar.reduce((m, c) => Math.max(m, c.rows.length), 0);
+  const uye = s.getMaxColumns() >= 5 ? s.getRange(1, 4, 2, 2).getDisplayValues() : [['', ''], ['', '']];   // Açılış / Üyelik korunur
   s.clear();
   boyut_(s, Math.max(20, ILK_SATIR + enCok + 10), Math.max(8, siniflar.length * BLOK + 1));
   s.getRange(1, 1, 4, 2).setValues([['PIN', "'" + pin], ['Son kayıt', "'" + tarih_()], ['Oturum', tok], ['Ayarlar', "'" + ayar]]);
+  s.getRange(1, 4, 2, 2).setValues([['Açılış', "'" + (uye[0][1] || gun_())], ['Üyelik', uye[1][1]]]);
   siniflar.forEach((c, k) => {
     const c0 = 1 + k * BLOK, n = c.rows.length;
     s.getRange(6, c0).setValue("'" + c.ad).setFontWeight('bold');
@@ -91,6 +115,7 @@ function tasi_(s) {
   try { sinif = JSON.parse(String(s.getRange(4, 6).getValue() || '[]')); } catch (x) { sinif = []; }
   const n = s.getLastRow() - 1;
   const rows = n > 0 ? s.getRange(2, 1, n, 4).getValues() : [];
+  s.getRange(1, 4, 2, 2).clearContent();       // eski düzende burada öğrenci verisi vardı
   yaz_(s, pin, tok, '', grupla_(rows, sinif));
 }
 
@@ -111,7 +136,7 @@ function doPost(e) {
       s = ss.insertSheet(ad);
       const tok = Utilities.getUuid();
       yaz_(s, pin, tok, '', [{ ad: 'Sınıf 1', rows: [] }]);
-      return out_({ ok: true, tok: tok });
+      return out_({ ok: true, tok: tok, uyelik: { pro: false, kalan: DENEME_GUN } });
     }
 
     if (!s) return out_({ ok: false, hata: 'yok' });
@@ -132,11 +157,14 @@ function doPost(e) {
     if (d.tok !== undefined && cur && String(d.tok) !== cur) return out_({ ok: false, hata: 'oturum' });
     const ayar = String(s.getRange(4, 2).getValue() || '').trim();
 
+    const uye = uyelik_(s);
+
     if (d.islem === 'oku') {
       const o = oku_(s);
-      return out_({ ok: true, sinif: o.sinif, rows: o.rows, ayar: ayar });
+      return out_({ ok: true, sinif: o.sinif, rows: o.rows, ayar: ayar, uyelik: uye });
     }
     if (d.islem === 'yaz') {
+      if (!uye.pro && uye.kalan <= 0) return out_({ ok: false, hata: 'sure' });
       // Ayar göndermeyen eski uygulama sürümü tablodaki ayarı silmesin
       yaz_(s, pin, cur, d.ayar === undefined ? ayar : String(d.ayar).replace(/[^\d-]/g, '').slice(0, 40), grupla_(d.rows, d.sinif));
       return out_({ ok: true });

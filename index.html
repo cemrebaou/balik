@@ -1007,6 +1007,7 @@
     // oysa balığın nerede durduğu bir sonraki açılışta hiç fark etmiyor. Böylece rölantide
     // localStorage'a tek bir yazma bile yapılmaz.
     saveGame() {
+      if (this.persist === false) return;           // misafir modu: hiçbir şey bu tarayıcıya kaydedilmez
       const json = JSON.stringify({ cur: this.curClass, list: this.classData() });
       if (json === this._lastSave) return;           // değişiklik yoksa localStorage'a tekrar yazma
       localStorage.setItem(CONFIG.CLASS_KEY, json);
@@ -2167,8 +2168,11 @@
   // Esas olan internetteki kayıttır. Giriş yapılınca ve sayfa açılınca internetteki liste ve ayarlar yüklenir;
   // buradaki her değişiklik birkaç saniye içinde internete yazılır. Kullanıcıya "hangisi geçerli" diye sorulmaz.
   // Öğrenci satırı: [ad, puan, model, sınıf, seçildi]. "Seçildi" (Sırayla Rastgele) tabloda kalın yazıyla tutulur.
+  // Üyelik: yeni hesap 30 gün ücretsiz denemedir; süre dolunca (Pro değilse) uygulama kullanılır ama değişiklik kaydedilmez.
+  // Misafir modunda hiçbir şey kaydedilmez, tarayıcı kapanınca silinir.
   const URL_ = "https://script.google.com/macros/s/AKfycbzRhDLgNIN2EJbScOp2QISiehRLO0ThUsSdRk6NQPcMoImPS7O8sAFgp_GkgAKwskpo/exec";
-  const K_CFG = "aquarium_sheet_v1", K_BASE = "aquarium_sheet_base_v1", K_GUEST = "aquarium_sheet_guest_v1";
+  const K_CFG = "aquarium_sheet_v1", K_BASE = "aquarium_sheet_base_v1", K_DATA = "aquarium_classes_v1";
+  const WA = "https://wa.me/cemrebaou";          // Pro üyelik için WhatsApp iletişim bağlantısı
   const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const lsSet = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) {} };
 
@@ -2178,6 +2182,7 @@
   let base = lsGet(K_BASE);                    // son eşitlemede internete yazılan / internetten gelen listenin imzası
   let status = "idle", lastErr = "", lastTime = 0, lastSync = 0, busy = false, timer = 0, applying = false;
   let first = true, lastSig = "", curView = "", ctx = {}, kickedMode = false, kickLost = false;
+  let uye = null, sure = false, sureShown = false;   // uye: {pro, kalan} — sure: deneme bitti, kayıt kapalı
 
   // ---- Yardımcılar ----
   const norm = a => String(a || "").trim().toLowerCase().replace(/[\[\]*?:\/\\]/g, "").slice(0, 50);
@@ -2195,12 +2200,12 @@
     return { rows, names, ayar, sig: JSON.stringify({ c: names, r: rows, a: ayar }) };
   };
   const local = () => pack(app.classes.map(c => c.name), app.classData().flatMap(c => c.rows.map(f => [f.name, f.score, f.spriteIndex, c.name, f.picked])), app.settingsCode());
-  // Tablodan gelen cevap. Eski script (ayar/kalınlık göndermeyen) hâlâ yüklüyse buradaki ayarlar ve seçimler korunur
-  const remote = r => {
-    if (r.ayar !== undefined) return pack(r.sinif, r.rows, r.ayar);
-    const L = local(), pk = new Set(L.rows.filter(x => x[4]).map(x => x[3] + "\n" + x[0]));
-    return pack(r.sinif, (r.rows || []).map(x => [x[0], x[1], x[2], x[3], pk.has(String(x[3]).trim() + "\n" + String(x[0]).trim())]), L.ayar);
-  };
+  const remote = r => pack(r.sinif, r.rows, r.ayar);
+  const waLink = () => WA + "?text=" + encodeURIComponent(cfg
+    ? `Merhaba, Eğitici Balık uygulamasında ${cfg.ad} hesabım için Pro üyelik almak istiyorum.`
+    : "Merhaba, Eğitici Balık uygulaması için Pro üyelik almak istiyorum.");
+  const waBtn = () => `<a class="btn-action sh-wa" href="${waLink()}" target="_blank" rel="noopener">💬 Pro üyelik için yaz</a>`;
+  const SURE_TXT = "30 günlük ücretsiz deneme süreniz sona erdi. Kayıtlı sınıflarınızı görmeye ve uygulamayı kullanmaya devam edebilirsiniz; ancak yeni değişiklikler Pro üyelik olmadığı için kaydedilmez. Pro üyeliğe geçtiğinizde tüm kayıtlarınız olduğu gibi kalır ve kaldığınız yerden devam edersiniz.";
   const unsynced = () => !!cfg && local().sig !== base;
   const setBase = s => { base = s; lsSet(K_BASE, s); };
 
@@ -2210,7 +2215,7 @@
   const read = (ad, pin, tok) => post({ islem: "oku", ad, pin, tok });     // tok verilmezse yalnızca PIN doğrulanır
   // İsmin başına ' konur: Google Tablosu "007", "1/2", "=..." gibi isimleri sayıya/tarihe/formüle çevirmesin
   const write = L => post({ islem: "yaz", ad: cfg.ad, pin: cfg.pin, tok: cfg.tok || "", sinif: L.names, ayar: L.ayar, rows: L.rows.map(([n, s, m, c, p]) => ["'" + n, s, m, "'" + c, p]) });
-  const errTxt = r => ({ ad: "Bu ad kullanılamaz.", pin: "PIN yanlış (4 rakam olmalı).", yok: "Bu adda hesap yok (sekme silinmiş olabilir).", var: "Bu ad zaten var.", oturum: "Bu hesapla başka yerde giriş yapıldı." }[r && r.hata]
+  const errTxt = r => ({ sure: "Deneme süresi doldu (Pro üyelik gerekli).", ad: "Bu ad kullanılamaz.", pin: "PIN yanlış (4 rakam olmalı).", yok: "Bu adda hesap yok (sekme silinmiş olabilir).", var: "Bu ad zaten var.", oturum: "Bu hesapla başka yerde giriş yapıldı." }[r && r.hata]
     || "Beklenmedik cevap: " + ((r && r.hata) || "?"));
   const netTxt = e => e && e.name === "AbortError" ? "Zaman aşımı (Google 30 sn içinde cevap vermedi)" : "Bağlanılamadı (internet yok ya da ağ Google'ı engelliyor)";
 
@@ -2239,7 +2244,10 @@
   const st = document.createElement("style");
   st.textContent = ".sh-in{width:100%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);border-radius:6px;color:#fff;padding:8px;font:inherit;font-size:14px;outline:none;user-select:text}" +
     "#sheet-box p,#sheet-news-box p{margin:0;font-size:13px;line-height:1.45;opacity:.9}#sheet-box .sh-msg{min-height:18px;font-size:13px}#sheet-box .modal-actions{flex-wrap:wrap}" +
-    ".sh-err{color:#fca5a5}.sh-ok{color:#86efac}.sh-news{display:flex;gap:8px;font-size:13px;padding:4px 0;border-top:1px solid rgba(255,255,255,.1)}";
+    ".sh-err{color:#fca5a5}.sh-ok{color:#86efac}.sh-news{display:flex;gap:8px;font-size:13px;padding:4px 0;border-top:1px solid rgba(255,255,255,.1)}" +
+    ".sh-wa{text-decoration:none;text-align:center;background:#16a34a!important}" +
+    "@keyframes shPulse{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.85)}50%{box-shadow:0 0 16px 5px rgba(239,68,68,.85)}}" +
+    "#sheet-btn.sure{background:#b91c1c;color:#fff;animation:shPulse 1.3s ease-in-out infinite}";
   document.head.appendChild(st);
 
   // ---- Kayıt haberleri ----
@@ -2250,21 +2258,23 @@
     news.unshift([Date.now(), icon, txt]); news.length = Math.min(news.length, 8);
     if (isOpen(newsBack)) renderNews();
   }
-  const statusTxt = () => ({ ok: "✓ Her şey kayıtlı" + (lastTime ? " (" + hm(lastTime) + ")" : ""), busy: "… Kaydediliyor",
-    off: "⚠ Kaydedilemedi, tekrar denenecek: " + lastErr, err: "⚠ Kaydedilemedi: " + lastErr, idle: "… Bağlanıyor" }[status]);
+  const statusTxt = () => sure ? "⛔ Deneme süresi doldu — değişiklikler kaydedilmiyor" : ({ ok: "✓ Her şey kayıtlı" + (lastTime ? " (" + hm(lastTime) + ")" : ""), busy: "… Kaydediliyor",
+    off: "⚠ Kaydedilemedi, tekrar denenecek: " + lastErr, err: "⚠ Kaydedilemedi: " + lastErr, idle: "… Bağlanıyor", sure: "… Kontrol ediliyor" }[status]);
   function renderNews() {
-    const bad = status === "off" || status === "err";
+    const bad = sure || status === "off" || status === "err";
     const list = news.length ? news.map(([t, i, x]) => `<div class="sh-news"><span style="opacity:.6">${hm(t)}</span><span class="${i === "⚠" ? "sh-err" : "sh-ok"}">${i}</span><span>${esc(x)}</span></div>`).join("")
       : '<p style="font-size:12px;opacity:.6">Henüz kayıt haberi yok.</p>';
     newsBox.innerHTML = `<h3 style="margin:0">💾 Kayıt Durumu</h3><p class="${bad ? "sh-err" : "sh-ok"}" style="font-size:15px"><b>${esc(cfg ? statusTxt() : "")}</b></p>
-      <div>${list}</div><div class="modal-actions"><button class="btn-action" data-n="close">Kapat</button></div>`;
+      ${sure ? `<p style="font-size:12px">${esc(SURE_TXT)}</p>` : ""}
+      <div>${list}</div><div class="modal-actions">${sure ? waBtn() : ""}<button class="btn-action" data-n="close">Kapat</button></div>`;
   }
   function openNews() { renderNews(); newsBack.classList.add("open"); newsBox.querySelector("[data-n]").focus(); }
   function closeNews() { newsBack.classList.remove("open"); }
 
   function paint() {
     const mark = { ok: " ✓", busy: " …", off: " ⚠", err: " ⚠" }[status] || "";
-    btn.textContent = "💾" + mark;
+    btn.textContent = sure ? "💾❗ Kaydedilmiyor" : "💾" + mark;
+    btn.classList.toggle("sure", sure);
     btn.style.display = cfg ? "" : "none";             // giriş yapılmamışsa kayıt simgesi görünmez
     btn.title = cfg ? "Kayıt durumu: " + statusTxt().replace(/^\S+ /, "") : "";
     who.textContent = cfg ? "👤 " + cfg.ad : "🔑 Giriş Yap";
@@ -2276,6 +2286,7 @@
     if (err !== undefined) lastErr = err;
     if (s === "ok") { lastErr = ""; lastTime = Date.now(); if (note) addNews("✓", note); }
     if (s === "off" || s === "err") addNews("⚠", (s === "off" ? "Kaydedilemedi, tekrar denenecek: " : "Kaydedilemedi: ") + lastErr);
+    if (s === "sure") addNews("⚠", "Yeni değişiklikler var ama Pro üyelik olmadığı için kaydedilmedi");
     paint();
     if (isOpen(newsBack)) renderNews();
     if (curView === "conn") view("conn");
@@ -2288,20 +2299,28 @@
     const title = "<h3 style='margin:0'>👤 Hesap</h3>";
     let h = "";
     if (name === "conn") {
-      h = `${title}<p>Hesap: <b>${esc(cfg.ad)}</b><br>${esc(statusTxt())}</p>
-        <p style="font-size:12px;opacity:.75">Değişiklikler birkaç saniye içinde kendiliğinden internete kaydedilir.</p>${m}
-        <div class="modal-actions"><button class="btn-secondary" data-a="cut">Çıkış yap</button><button class="btn-action" data-a="close">Kapat</button></div>`;
+      const uyeTxt = !uye ? "" : uye.pro ? "⭐ Pro üyelik" : sure ? "⛔ Ücretsiz deneme süresi doldu" : `🕒 Ücretsiz deneme: ${uye.kalan} gün kaldı`;
+      h = `${title}<p>Hesap: <b>${esc(cfg.ad)}</b>${uyeTxt ? "<br>" + uyeTxt : ""}<br>${esc(statusTxt())}</p>
+        <p style="font-size:12px;opacity:.75">${sure ? esc(SURE_TXT) : "Değişiklikler birkaç saniye içinde kendiliğinden internete kaydedilir."}</p>${m}
+        <div class="modal-actions"><button class="btn-secondary" data-a="cut">Çıkış yap</button>${uye && !uye.pro ? waBtn() : ""}<button class="btn-action" data-a="close">Kapat</button></div>`;
+    } else if (name === "sure") {
+      h = `<h3 style="margin:0">⛔ Deneme süresi doldu</h3><p>${esc(SURE_TXT)}</p>
+        <div class="modal-actions">${waBtn()}<button class="btn-secondary" data-a="close">Tamam</button></div>`;
+    } else if (name === "guest") {
+      h = `<h3 style="margin:0">⚠ Misafir modu</h3><p>Bu modda <b>hiçbir şey kaydedilmez</b>. Eklediğiniz öğrenciler ve verdiğiniz puanlar, tarayıcıyı kapattığınızda silinir.</p>
+        <p style="font-size:12px;opacity:.75">Kayıtlarınızın kalması için ücretsiz hesap açabilirsiniz: 30 gün boyunca her şey internete kaydedilir ve her bilgisayardan erişilir.</p>
+        <div class="modal-actions"><button class="btn-secondary" data-a="start">🔑 Hesap aç / Giriş yap</button><button class="btn-action" data-a="close">Anladım, misafir devam et</button></div>`;
     } else if (name === "wel") {
       h = `<h3 style="margin:0">👋 Hoş geldin</h3><p>Bu tarayıcıda kayıtlı bir hesap bulunamadı. Hesabınla giriş yaparsan sınıfın her bilgisayarda aynı gelir ve değişiklikler kendiliğinden kaydedilir.</p>
         <button class="btn-action" data-a="start" style="padding:14px;font-size:16px">🔑 Giriş yap / Hesap aç</button>
-        <button class="btn-secondary" data-a="guest" style="opacity:.55;font-size:12px;padding:6px">Misafir olarak devam et (veriler yalnızca bu tarayıcıda kalır)</button>`;
+        <button class="btn-secondary" data-a="guest" style="opacity:.55;font-size:12px;padding:6px">Misafir olarak devam et (hiçbir şey kaydedilmez)</button>`;
     } else if (name === "start") {
-      h = `${title}<p>Kullanıcı adını ve 4 haneli PIN'ini yaz. Hesabın varsa giriş yapılır ve internetteki sınıfın yüklenir, yoksa yeni hesap açmak isteyip istemediğin sorulur.</p>
+      h = `${title}<p>Kullanıcı adını ve 4 haneli PIN'ini yaz. Hesabın varsa giriş yapılır ve internetteki sınıfın yüklenir, yoksa yeni hesap açmak isteyip istemediğin sorulur. Yeni hesaplar 30 gün ücretsizdir.</p>
         <input class="sh-in" id="sh-ad" placeholder="Kullanıcı adı (örn. merve5a)" maxlength="50" value="${esc(ctx.ad || "")}" autocomplete="off" spellcheck="false">
         <div style="display:flex;gap:6px"><input class="sh-in" id="sh-pin" type="password" placeholder="PIN (4 rakam)" maxlength="4" inputmode="numeric" autocomplete="off" value="${esc(ctx.pin || "")}"><button class="btn-secondary" data-a="eye" type="button" title="PIN'i göster / gizle" style="padding:0 12px">👁</button></div>
         ${m}<div class="modal-actions"><button class="btn-secondary" data-a="close">Kapat</button><button class="btn-action" data-a="go">Bağlan</button></div>`;
     } else if (name === "new") {
-      h = `${title}<p><b>${esc(ctx.ad)}</b> adında bir hesap yok. Bu adla yeni hesap açılsın ve şu an buradaki <b>${app.totalFish()}</b> öğrenci internete kaydedilsin mi?</p>${m}
+      h = `${title}<p><b>${esc(ctx.ad)}</b> adında bir hesap yok. Bu adla yeni hesap açılsın ve şu an buradaki <b>${app.totalFish()}</b> öğrenci internete kaydedilsin mi? Hesap 30 gün ücretsiz deneme olarak açılır.</p>${m}
         <div class="modal-actions"><button class="btn-secondary" data-a="start">Geri</button><button class="btn-action" data-a="create">Evet, oluştur</button></div>`;
     } else if (name === "kicked") {
       h = `<h3 style="margin:0">🔒 Oturum kapandı</h3><p>Bu hesapla <b>başka bir yerde giriş yapıldığı</b> için buradan çıkış yapıldı. Tekrar giriş yaparsan internetteki sınıfın yüklenir.${kickLost ? "<br><br>⚠ Buradaki son değişiklikler internete kaydedilmemişti." : ""}</p>
@@ -2316,10 +2335,23 @@
     if (kickedMode) return view("kicked");          // oturum düştüyse seçim yapmadan kapatılamaz
     back.classList.remove("open"); curView = "";
   }
-  function connect(ad, pin, tok) { kickedMode = false; first = false; cfg = { ad, pin, tok }; lsSet(K_CFG, JSON.stringify(cfg)); lsSet(K_GUEST, null); paint(); }
-  function logout() {
-    clearTimeout(timer); cfg = null; status = "idle"; news.length = 0;
-    lsSet(K_CFG, null); setBase(null);
+  function connect(ad, pin, tok) {
+    kickedMode = false; first = false; cfg = { ad, pin, tok }; lsSet(K_CFG, JSON.stringify(cfg));
+    app.persist = true; app._lastSave = null; app.saveGame(); paint();
+  }
+  function logout() {                               // çıkışta bu tarayıcıdaki kopya silinir (misafir modu kaydetmez)
+    clearTimeout(timer); cfg = null; status = "idle"; news.length = 0; setUye(null);
+    lsSet(K_CFG, null); setBase(null); lsSet(K_DATA, null); app.persist = false;
+  }
+  function setUye(u) {
+    uye = u && typeof u === "object" ? u : null;
+    const was = sure; sure = !!(uye && !uye.pro && uye.kalan <= 0);
+    if (was !== sure) paint();
+  }
+  // Süre dolmuşken yapılan değişiklik: kaydedilmez, ilk seferinde açıklama penceresi gösterilir
+  function blocked() {
+    setStatus("sure");
+    if (!sureShown && !isOpen(back)) { sureShown = true; ctx = {}; view("sure"); openBack(); }
   }
 
   // Giriş: yeni oturum kodu alınır; hesapta açık olan diğer bilgisayarlar bir sonraki eşitlemede çıkış yapar
@@ -2331,7 +2363,7 @@
   // Başka yerde giriş yapıldı: bu bilgisayar çıkış yapar
   function kick() {
     kickLost = unsynced(); kickedMode = true;
-    logout(); lsSet(K_GUEST, "1");
+    logout();
     closeNews(); paint(); ctx = {}; view("kicked"); openBack();
   }
 
@@ -2358,7 +2390,7 @@
     return w;
   }
   const schedule = (ms = 2000) => { clearTimeout(timer); timer = setTimeout(sync, ms); };
-  const fail = w => w.hata === "oturum" ? kick() : setStatus("err", errTxt(w));
+  const fail = w => w.hata === "oturum" ? kick() : w.hata === "sure" ? (setUye({ pro: false, kalan: 0 }), blocked()) : setStatus("err", errTxt(w));
 
   // Eşitleme: internetteki hâl okunur. Sayfa yeni açıldıysa ya da burada kaydedilmemiş değişiklik yoksa
   // internetteki liste esas alınır; buradaki yeni değişiklikler ise internete yazılır.
@@ -2369,11 +2401,12 @@
     try {
       const r = await read(cfg.ad, cfg.pin, cfg.tok || "");
       if (!r.ok) return fail(r);
-      lastSync = Date.now();
+      lastSync = Date.now(); setUye(r.uyelik);
       const P = remote(r), L = local();
       const wasFirst = first; first = false;
       if (P.sig === L.sig) { setBase(P.sig); return setStatus("ok", undefined, wasFirst ? "İnternetteki kayıtla aynı" : ""); }
       if (wasFirst || L.sig === base) { apply(P); return setStatus("ok", undefined, "İnternetteki kayıt yüklendi"); }
+      if (sure) return blocked();                                       // süre dolmuş: yerel değişiklik gönderilmez
       const w = await push();
       return w.ok ? setStatus("ok", undefined, "Kaydedildi") : fail(w);
     } catch (e) { setStatus("off", netTxt(e)); schedule(30000); }
@@ -2386,7 +2419,7 @@
     const P = remote(r);
     const en = await enter(ctx.ad, ctx.pin);
     if (!en.ok) return view("start", errTxt(en), "sh-err");
-    lastSync = Date.now();
+    lastSync = Date.now(); setUye(r.uyelik);
     if (!P.rows.length && app.totalFish()) {
       const w = await push();
       if (!w.ok) { fail(w); return view("conn", errTxt(w), "sh-err"); }
@@ -2406,7 +2439,7 @@
       if (a === "eye") { const i = box.querySelector("#sh-pin"); i.type = i.type === "password" ? "text" : "password"; return i.focus(); }
       if (a === "close") return closeModal();
       if (a === "start") return view("start");
-      if (a === "guest") { lsSet(K_GUEST, "1"); return closeModal(); }
+      if (a === "guest") return view("guest");
       if (a === "leave") {
         if (kickLost && !confirm("İnternete kaydedilmemiş değişiklikler silinecek. Yine de yeni boş ekran açılsın mı?")) return;
         kickedMode = false; applying = true;
@@ -2428,7 +2461,7 @@
         view("new", "Oluşturuluyor…");
         const r = await post({ islem: "olustur", ad: ctx.ad, pin: ctx.pin });
         if (!r.ok) return r.hata === "var" ? view("start", "Bu ad az önce başkası tarafından alındı. Başka bir ad seç.", "sh-err") : view("new", errTxt(r), "sh-err");
-        connect(ctx.ad, ctx.pin, r.tok);
+        connect(ctx.ad, ctx.pin, r.tok); setUye(r.uyelik);
         const w = await push();
         if (!w.ok) { fail(w); return view("conn", errTxt(w), "sh-err"); }
         lastSync = Date.now(); setStatus("ok", undefined, "Hesap açıldı, öğrenciler kaydedildi");
@@ -2436,7 +2469,7 @@
       }
       if (a === "cut") {
         if (unsynced() && !confirm("İnternete kaydedilmemiş değişiklikler var. Yine de çıkış yapılsın mı?")) return;
-        logout(); lsSet(K_GUEST, null); paint(); ctx = {}; return view("wel");
+        logout(); paint(); ctx = {}; return view("wel");
       }
     } catch (err) {
       if (cfg) { setStatus("off", netTxt(err)); schedule(30000); }
@@ -2458,6 +2491,7 @@
       if (s === lastSig) return;                                          // öğrenci verisi değişmedi
       lastSig = s;
       if (applying || !cfg) return;
+      if (sure) return blocked();
       status = "busy"; paint(); schedule();
     };
     // Uygulamaya dönülünce ve belli aralıklarla internetteki hâl kontrol edilir (başka yerde giriş yapıldıysa da fark edilir)
@@ -2469,9 +2503,14 @@
       if (!document.hidden) { if (due(60000)) sync(); }
       else if (cfg && !busy && unsynced()) sync();                        // sekmeden çıkarken bekleyeni hemen gönder
     });
-    window.addEventListener("beforeunload", e => { if (unsynced()) { e.preventDefault(); e.returnValue = ""; } });
+    window.addEventListener("beforeunload", e => { if (unsynced() || (!cfg && app.totalFish())) { e.preventDefault(); e.returnValue = ""; } });
+    if (!cfg) {                                                           // giriş yok: misafir modu, hiçbir şey kaydedilmez
+      app.persist = false; lsSet(K_DATA, null);
+      if (app.totalFish()) { applying = true; try { app.setClasses([{ name: "Sınıf 1", rows: [] }], "Sınıf 1"); } finally { applying = false; } }
+      lastSig = local().sig;
+    }
     paint();
-    if (!cfg && lsGet(K_GUEST) !== "1") { ctx = {}; view("wel"); openBack(); }
+    if (!cfg) { ctx = {}; view("wel"); openBack(); }
     if (cfg) sync();
   }
   paint();
