@@ -2225,7 +2225,7 @@
   document.querySelector("#bottom-bar .panel-box").appendChild(btn);
   const who = document.createElement("button");                 // sağ alt: hesap işlemleri
   who.className = "btn-secondary"; who.id = "sheet-who"; who.onclick = () => openModal();
-  who.style.cssText = "max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap";
+  who.style.cssText = "max-width:230px;display:inline-flex;align-items:center;gap:6px;white-space:nowrap";
   document.querySelector("#bottom-bar .panel-box:last-child").appendChild(who);
 
   const mkModal = id => {
@@ -2247,7 +2247,16 @@
     ".sh-err{color:#fca5a5}.sh-ok{color:#86efac}.sh-news{display:flex;gap:8px;font-size:13px;padding:4px 0;border-top:1px solid rgba(255,255,255,.1)}" +
     ".sh-wa{text-decoration:none;text-align:center;background:#16a34a!important}" +
     "@keyframes shPulse{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.85)}50%{box-shadow:0 0 16px 5px rgba(239,68,68,.85)}}" +
-    "#sheet-btn.sure{background:#b91c1c;color:#fff;animation:shPulse 1.3s ease-in-out infinite}";
+    "#sheet-btn.sure{background:#b91c1c;color:#fff;animation:shPulse 1.3s ease-in-out infinite}" +
+    // Sağ alttaki hesap düğmesi: Pro altın, deneme mavi rozet, süresi dolmuş kırmızı rozet
+    "#sheet-who .nm{overflow:hidden;text-overflow:ellipsis;max-width:130px}" +
+    "#sheet-who .bdg{font-size:10px;font-weight:900;letter-spacing:.6px;padding:2px 6px;border-radius:999px;line-height:1.3}" +
+    "@keyframes shGold{0%{background-position:0% 50%}100%{background-position:200% 50%}}" +
+    "#sheet-who.pro{background:linear-gradient(110deg,#f59e0b,#fde047 35%,#fbbf24 50%,#fde047 65%,#f59e0b);background-size:200% 100%;animation:shGold 4s linear infinite;" +
+    "color:#3b2300;font-weight:900;border:1px solid #fde68a!important;box-shadow:0 0 12px rgba(251,191,36,.55)}" +
+    "#sheet-who.pro .bdg{background:#3b2300;color:#fde047}" +
+    "#sheet-who.trial .bdg{background:#0ea5e9;color:#fff}" +
+    "#sheet-who.expired{border:1px solid #ef4444!important}#sheet-who.expired .bdg{background:#b91c1c;color:#fff}";
   document.head.appendChild(st);
 
   // ---- Kayıt haberleri ----
@@ -2277,9 +2286,14 @@
     btn.classList.toggle("sure", sure);
     btn.style.display = cfg ? "" : "none";             // giriş yapılmamışsa kayıt simgesi görünmez
     btn.title = cfg ? "Kayıt durumu: " + statusTxt().replace(/^\S+ /, "") : "";
-    who.textContent = cfg ? "👤 " + cfg.ad : "🔑 Giriş Yap";
-    who.style.border = cfg ? "1px solid #22c55e" : "";
-    who.title = cfg ? "Hesap: " + cfg.ad : "Giriş yap / Hesap aç";
+    const kind = !cfg ? "" : uye?.pro ? "pro" : sure ? "expired" : uye ? "trial" : "";
+    who.className = "btn-secondary" + (kind ? " " + kind : "");
+    const kalan = uye ? uye.kalan : 0;
+    who.innerHTML = !cfg ? "🔑 Giriş Yap"
+      : `<span>${kind === "pro" ? "👑" : "👤"}</span><span class="nm">${esc(cfg.ad)}</span>` +
+        ({ pro: '<span class="bdg">PRO</span>', trial: `<span class="bdg">DENEME · ${kalan} GÜN</span>`, expired: '<span class="bdg">SÜRE DOLDU</span>' }[kind] || "");
+    who.style.border = cfg && !kind ? "1px solid #22c55e" : "";
+    who.title = !cfg ? "Giriş yap / Hesap aç" : "Hesap: " + cfg.ad + ({ pro: " — Pro üyelik", trial: ` — ücretsiz deneme, ${kalan} gün kaldı`, expired: " — deneme süresi doldu" }[kind] || "");
   }
   function setStatus(s, err, note) {
     status = s;
@@ -2345,8 +2359,8 @@
   }
   function setUye(u) {
     uye = u && typeof u === "object" ? u : null;
-    const was = sure; sure = !!(uye && !uye.pro && uye.kalan <= 0);
-    if (was !== sure) paint();
+    sure = !!(uye && !uye.pro && uye.kalan <= 0);
+    paint();
   }
   // Süre dolmuşken yapılan değişiklik: kaydedilmez, ilk seferinde açıklama penceresi gösterilir
   function blocked() {
