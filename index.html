@@ -2535,7 +2535,7 @@
 </script>
 <script>(() => {
   // ===== Ders Sonu Canavarı: öğrenci balıkları puanlarıyla dev ahtapota saldırır =====
-  // Can = sınıfın toplam puanı × 5. Her vuruş, balığın puanı kadar hasar verir. Canavar her zaman yenilir;
+  // Can = sınıfın toplam puanı × 5. Her vuruş, balığın puanı ile puanının 2 katı arasında hasar verir. Canavar her zaman yenilir;
   // can azaldıkça %50 boyuta kadar küçülür, sonunda kaçar ve en çok hasar verenler podyuma çıkar.
   const NS = "http://www.w3.org/2000/svg";
   const mk = (tag, attrs) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); return e; };
@@ -3093,7 +3093,7 @@ fill="none" stroke="#2a0510" stroke-width="4" opacity=".55" stroke-linecap="roun
 
   function hit(F) {
     if (B.phase !== "fight") return;
-    const dmg = F.st.score, s = B.stats.get(F.st);
+    const sc = F.st.score, dmg = sc + Math.floor(Math.random() * (sc + 1)), s = B.stats.get(F.st);   // hasar: puan ile 2 katı arası
     s.dmg += dmg; s.hits++;
     B.hp = Math.max(0, B.hp - dmg);
     B.shake = .3; B.flashV = .5; B.hurt = 1;
