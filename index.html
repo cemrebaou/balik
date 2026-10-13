@@ -462,7 +462,7 @@
   <button id="focus-toggle" class="corner-btn" onclick="app.toggleFocusMode()" title="Sadece Akvaryumu Göster">🐵</button>
   <button id="fullscreen-btn" class="corner-btn" onclick="app.toggleFullscreen()" title="Tam Ekran">⛶</button>
   <a class="dev-signature" href="https://www.instagram.com/cemrebaou/" target="_blank" rel="noopener noreferrer">
-    Developed by Cemre Başoğlu - <span id="app-version">v0.9</span>
+    Developed by Cemre Başoğlu - <span id="app-version">v0.91</span>
   </a>
 
 <div id="roster-panel">
@@ -2741,12 +2741,13 @@
 
   function start() {
     if (B || typeof app === "undefined" || !app.ready) return;
-    const list = app.fishes.filter(f => f.score > 0);
+    // Savaşa o an ekranda görünen balıklar katılır (sıra eşiği ve 🐟 balık filtresi ne gösteriyorsa)
+    const list = app.fishes.filter(f => f.vis && f.score > 0);
     const root = document.createElement("div"); root.id = "battle";
     document.body.appendChild(root); document.body.classList.add("battle-on");
     requestAnimationFrame(() => root.classList.add("show"));
     if (!list.length) {
-      root.innerHTML = `<div class="msg">Savaşmak için önce öğrencilere puan verin 🐟</div><button class="x" title="Akvaryuma dön (Esc)">🐠 Akvaryuma Dön</button>`;
+      root.innerHTML = `<div class="msg">Ekranda savaşacak balık yok. Öğrencilere puan verin ya da filtreyi değiştirin 🐟</div><button class="x" title="Akvaryuma dön (Esc)">🐠 Akvaryuma Dön</button>`;
       root.querySelector(".x").onclick = () => end();
       B = { root, stop: true };
       return;
