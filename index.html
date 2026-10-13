@@ -462,7 +462,7 @@
   <button id="focus-toggle" class="corner-btn" onclick="app.toggleFocusMode()" title="Sadece Akvaryumu Göster">🐵</button>
   <button id="fullscreen-btn" class="corner-btn" onclick="app.toggleFullscreen()" title="Tam Ekran">⛶</button>
   <a class="dev-signature" href="https://www.instagram.com/cemrebaou/" target="_blank" rel="noopener noreferrer">
-    Developed by Cemre Başoğlu - <span id="app-version">v0.92</span>
+    Developed by Cemre Başoğlu - <span id="app-version">v0.93</span>
   </a>
 
 <div id="roster-panel">
@@ -915,12 +915,12 @@
       visIn.addEventListener("change", () => {
         const v = Math.min(99, Math.max(1, parseInt(visIn.value) || this.visibleCount));
         visIn.value = this.visibleCount = v;
-        this.saveSettings(); this.syncVisibility();
+        this.saveSettings(); this.syncVisibility(); this.updateClassLevel(true);
       });
       visIn.addEventListener("keydown", e => { if (e.key === "Enter") visIn.blur(); });
       visAll.addEventListener("change", () => {
         this.showAll = visAll.checked; visIn.disabled = this.showAll;
-        this.saveSettings(); this.syncVisibility();
+        this.saveSettings(); this.syncVisibility(); this.updateClassLevel(true);
         visAll.blur();                       // odak kutuda kalırsa klavye kısayolları (H, F, R...) çalışmaz
       });
       this.els.thrInput.addEventListener("change", () => {
@@ -1269,9 +1269,11 @@
     }
 
     /* --- sınıf seviyesi: hedef = öğrenci sayısı x eşik --- */
+    // Sınıf seviyesi ve Sınıf Puanı: o an ekranda görünen balıklara göre (sıra eşiği + 🐟 filtresi)
     updateClassLevel(silent = false) {
-      const n = this.fishes.length, target = n * this.threshold, max = LEVELS.length;
-      const total = this.fishes.reduce((t, f) => t + f.score, 0);
+      const on = this.fishes.filter(f => f.vis);
+      const n = on.length, target = n * this.threshold, max = LEVELS.length;
+      const total = on.reduce((t, f) => t + f.score, 0);
       this.els.classScoreBadge.textContent = total;                 // Sınıf Puanı rozeti (eskiden tek puanda güncellenmiyordu)
       const level = n ? Math.min(max, Math.floor(total / target) + 1) : 1;
       const cur = n ? Math.min(target, total - (level - 1) * target) : 0;
@@ -1370,12 +1372,12 @@
     toggleFishFilter() {
       this.fishFilter = !this.fishFilter;
       document.getElementById("fish-filter").classList.toggle("on", this.fishFilter);
-      this.syncVisibility(); this.updateLeaderHighlights();
+      this.syncVisibility(); this.updateLeaderHighlights(); this.updateClassLevel(true);
     }
     applyFilter() {
       const q = AquariumApp.fold(this.els.search.value.trim());
       const changed = q !== this.filterQ; this.filterQ = q;
-      if (changed && this.fishFilter) { this.syncVisibility(); this.updateLeaderHighlights(); }
+      if (changed && this.fishFilter) { this.syncVisibility(); this.updateLeaderHighlights(); this.updateClassLevel(true); }
       let shown = 0;
       for (const f of this.fishes) {
         if (!f.rowEl) continue;
@@ -3208,7 +3210,7 @@ fill="none" stroke="#2a0510" stroke-width="4" opacity=".55" stroke-linecap="roun
 
   // ---------------- Can barı ----------------
   // Kol kopması: can %80'e inince 7 kol, %60'ta 6, %50'de 5, %40'ta 4, %30'da 3, %20'de 2, %10'da 1 kol kalır
-  const CUT_AT = [.8, .6, .5, .4, .3, .2, .1], CUT_ORDER = [2, 3, 0, 1, 4, 5, 6];
+  const CUT_AT = [.8, .6, .5, .4, .3, .2, .1, 0], CUT_ORDER = [2, 3, 0, 1, 4, 5, 6, 7];   // son vuruşta son kol da kopar, yalnız kafa kalır
   function cutArms() {
     const r = B.hp / B.maxHp, need = CUT_AT.filter(x => r <= x).length;
     B.cut = B.cut || 0;
