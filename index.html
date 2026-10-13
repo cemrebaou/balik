@@ -462,7 +462,7 @@
   <button id="focus-toggle" class="corner-btn" onclick="app.toggleFocusMode()" title="Sadece Akvaryumu Göster">🐵</button>
   <button id="fullscreen-btn" class="corner-btn" onclick="app.toggleFullscreen()" title="Tam Ekran">⛶</button>
   <a class="dev-signature" href="https://www.instagram.com/cemrebaou/" target="_blank" rel="noopener noreferrer">
-    Developed by Cemre Başoğlu - <span id="app-version">v0.91</span>
+    Developed by Cemre Başoğlu - <span id="app-version">v0.92</span>
   </a>
 
 <div id="roster-panel">
@@ -478,9 +478,9 @@
   <div class="class-score-row" onclick="event.stopPropagation();">
     <span class="roster-name">⭐ Sınıf Puanı</span>
     <div class="roster-controls">
-      <button class="ctrl-btn btn-minus" onclick="app.classScoreStep(-1)" title="Sınıftaki herkesten 1 puan düş">-</button>
+      <button class="ctrl-btn btn-minus" onclick="app.classScoreStep(-1)" title="Ekranda görünen herkesten 1 puan düş">-</button>
       <span class="score-badge" id="class-score-badge">0</span>
-      <button class="ctrl-btn btn-plus" onclick="app.classScoreStep(1)" title="Sınıftaki herkese 1 puan ver">+</button>
+      <button class="ctrl-btn btn-plus" onclick="app.classScoreStep(1)" title="Ekranda görünen herkese 1 puan ver">+</button>
     </div>
   </div>
   <div class="search-row">
@@ -1304,8 +1304,8 @@
     }
 
     pickRandomStudent(mode = "random") {
-      // Adaylar: balık filtresi açıksa yalnızca aramaya uyanlar. Sıralı modda bu turda seçilmiş (kalın) olanlar atlanır.
-      const base = this.fishes.filter(f => this.inFilter(f));
+      // Adaylar: o an ekranda görünen balıklar (sıra eşiği + 🐟 filtresi). Sıralı modda bu turda seçilmiş (kalın) olanlar atlanır.
+      const base = this.fishes.filter(f => f.vis);                 // yalnızca ekranda görünen balıklar
       if (this.isPicking || !base.length) return;
       this.isPicking = true;
       let candidates = base;
@@ -1605,11 +1605,13 @@
       this.saveGame(); this.audio.playDrop(); this.updateClassLevel();
     }
     // Sınıf Puanı: herkese birlikte +1 / -1 (küçük balıklardaki -/+ ile aynı mantık)
+    // Sınıf Puanı +/−: yalnızca o an ekranda görünen balıklara uygulanır (sıra eşiği ve 🐟 filtresi belirler)
     classScoreStep(delta) {
-      if (!this.fishes.length) return;
-      if (delta > 0) { this.audio.playDrop(); this.awardPoints(this.fishes, true); }
+      const list = this.fishes.filter(f => f.vis);
+      if (!list.length) return;
+      if (delta > 0) { this.audio.playDrop(); this.awardPoints(list, true); }
       else {
-        for (const f of this.fishes) {
+        for (const f of list) {
           if (f.score <= 0) continue;
           f.score -= 1; f.eatenScore = f.vis ? Math.max(0, (f.eatenScore ?? 0) - 1) : f.score;
           if (f.vis) this.updateFishVisual(f);
