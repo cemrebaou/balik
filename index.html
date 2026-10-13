@@ -462,7 +462,7 @@
   <button id="focus-toggle" class="corner-btn" onclick="app.toggleFocusMode()" title="Sadece Akvaryumu Göster">🐵</button>
   <button id="fullscreen-btn" class="corner-btn" onclick="app.toggleFullscreen()" title="Tam Ekran">⛶</button>
   <a class="dev-signature" href="https://www.instagram.com/cemrebaou/" target="_blank" rel="noopener noreferrer">
-    Developed by Cemre Başoğlu - <span id="app-version">v0.8</span>
+    Developed by Cemre Başoğlu - <span id="app-version">v0.9</span>
   </a>
 
 <div id="roster-panel">
@@ -665,7 +665,7 @@
   const THEMES = ["auto", "morning", "evening", "night"];
   const SORTS = [["none", true], ["name", true], ["name", false], ["score", false], ["score", true]];   // 0 sırasız, 1 isim A-Z, 2 isim Z-A, 3 puan çoktan aza, 4 puan azdan çoğa
   // v2: sprite'lar ikili PNG Blob olarak saklanıyor (v1 base64 dataURL metniydi)
-  const SPRITE_KEY = "fish_sprites_emb2";
+  const SPRITE_KEY = "fish_sprites_emb3";   // v3: dedektif balığın piposu silindi (modeller bir kez yeniden hazırlanır)
   const FRAME_MS = 1000 / 60;           // Hareket 60 FPS'e göre normalize edilir (dt)
   const RANK_ICONS = { gold: "👑", silver: "🥈", bronze: "🥉" };
   const RANK_ORDER = ["gold", "silver", "bronze"];
@@ -753,6 +753,11 @@
       const { naturalWidth: W, naturalHeight: H } = img;
       const c = document.createElement("canvas"); c.width = W; c.height = H;
       const ctx = c.getContext("2d", { willReadFrequently: true }); ctx.drawImage(img, 0, 0);
+      // Düzeltmeler: dedektif şapkalı balığın ağzındaki pipo silinir (balık ve sırası aynen kalır)
+      ctx.save(); ctx.globalCompositeOperation = "destination-out"; ctx.beginPath();
+      [[0,102],[23,103],[27,110.5],[31,112.5],[36,114.5],[42,116],[47,117.5],[47,123],[38,125],[30,130],[28,146],[0,146]]
+        .forEach(([x, y], i) => ctx[i ? "lineTo" : "moveTo"](812 + x, 1696 + y));
+      ctx.closePath(); ctx.fill(); ctx.restore();
       const data = ctx.getImageData(0, 0, W, H).data;
       // Piksel katı mı? (alfa >= 30 ve neredeyse beyaz değil)
       const isSolid = idx => {
