@@ -372,6 +372,9 @@
     .btn-secondary:hover { background: #334155; }
     .btn-icon { background: rgba(255,255,255,0.15); border: none; color: white; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; white-space: nowrap; }
     .btn-icon:hover { background: rgba(255,255,255,0.25); }
+    #grp-n { width: 42px; padding: 7px 4px; text-align: center; border-radius: 6px; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.1); color: #fff; font-size: 14px; font-weight: 700; outline: none; }
+    .grp-zone { position: fixed; z-index: 7; pointer-events: none; border: 2px dashed rgba(255,255,255,.55); border-radius: 14px; background: rgba(255,255,255,.04); box-sizing: border-box; }
+    .grp-zone b { position: absolute; top: 6px; left: 10px; font-size: 13px; color: rgba(255,255,255,.85); text-shadow: 0 1px 4px rgba(0,0,0,.7); }
     .dev-signature { position: fixed; bottom: 20px; left: 96px; z-index: 999; color: rgba(255,255,255,0.65); font-size: 13px; font-weight: 600; text-decoration: none; text-shadow: 1px 1px 4px rgba(0,0,0,0.8); transition: color 0.2s, transform 0.2s; }
     .dev-signature:hover { color: #38bdf8; transform: scale(1.05); }
     .corner-btn { position: fixed; bottom: 18px; z-index: 999; background: rgba(15,23,42,.78); border: 1px solid rgba(255,255,255,.25);
@@ -462,7 +465,7 @@
   <button id="focus-toggle" class="corner-btn" onclick="app.toggleFocusMode()" title="Sadece Akvaryumu Göster">🐵</button>
   <button id="fullscreen-btn" class="corner-btn" onclick="app.toggleFullscreen()" title="Tam Ekran">⛶</button>
   <a class="dev-signature" href="https://www.instagram.com/cemrebaou/" target="_blank" rel="noopener noreferrer">
-    Developed by Cemre Başoğlu - <span id="app-version">v0.94</span>
+    Developed by Cemre Başoğlu - <span id="app-version">v0.95</span>
   </a>
 
 <div id="roster-panel">
@@ -547,6 +550,8 @@
     <button class="btn-icon" id="theme-toggle" onclick="app.toggleTheme()" title="Gün döngüsü: Otomatik / Sabah / Akşam / Gece">🕐</button>
     <button class="btn-icon" id="picker-btn" onclick="app.pickRandomStudent('random')" title="Rastgele: Tüm listeden her seferinde şansa bir öğrenci seç">🎯</button>
     <button class="btn-icon" id="picker-seq-btn" onclick="app.pickRandomStudent('sequential')" title="Sırayla Rastgele: Herkes seçilene kadar, daha önce seçilenleri dışarıda bırakarak rastgele seç">🎲</button>
+    <input id="grp-n" type="number" min="0" max="12" value="0" title="Kaç gruba bölünsün? (0 = grupsuz)" onkeydown="if(event.key==='Enter')app.groupFish()">
+    <button class="btn-icon" id="grp-btn" onclick="app.groupFish()" title="Grupla: Balıkları bu sayıda rastgele gruba böler, her grup kendi alanında yüzer (0 = grupları kaldır)">🧩 Grupla</button>
     <button class="btn-icon" id="lock-toggle" onclick="app.toggleClickLock()" title="Yanlışlıkla Yem Verme Koruması: Balıklara tıklayarak puan vermeyi kapatır">🖱️</button>
     <button class="btn-icon" id="audio-toggle" onclick="app.toggleAudio()" title="Ses Efektlerini Aç/Kapat">🔊</button>
   </div>
@@ -869,7 +874,7 @@
       this.classLevel = 0; this.levelBusy = false; this.decorEls = [];
       this.fishFilter = false; this.filterQ = "";      // balık filtresi: açıkken arama ekrandaki balıklara da uygulanır (kaydedilmez)
       this.emptyEl = Object.assign(document.createElement("div"), { className: "roster-empty", textContent: "Sonuç bulunamadı" });
-      this.activeFishes = []; this.sort = { key: "none", asc: true }; this._sortT = 0;
+      this.groupN = 0; this.zones = null; this.zoneEls = []; this.activeFishes = []; this.sort = { key: "none", asc: true }; this._sortT = 0;
       this.W = window.innerWidth; this.H = window.innerHeight; this.lastT = 0;
       const $ = id => document.getElementById(id);
       this.els = {
@@ -975,7 +980,7 @@
       this.ready = true; window.dispatchEvent(new Event("aquarium-ready"));
 
       window.addEventListener("resize", () => {
-        this.W = window.innerWidth; this.H = window.innerHeight;
+        this.W = window.innerWidth; this.H = window.innerHeight; this.layoutZones();
         this.fishes.forEach(f => { f.x = Math.min(f.x, this.W - 120); f.y = Math.min(f.y, this.H - 150); });
       });
     }
@@ -1027,6 +1032,7 @@
       this.classLevel = 0;
       this.els.search.value = ""; this.filterQ = "";
       this.renderAll(); this.renderTabs();
+      if (this.groupN) this.assignGroups();
     }
     // Eşitleme: tüm sınıf listesini topluca değiştirir
     setClasses(list, cur) {
@@ -1305,16 +1311,51 @@
       setTimeout(() => this.els.levelToast.classList.remove("show"), 3500);
     }
 
+    /* --- gruplama: balıklar n gruba rastgele bölünür, her grup kendi alanında yüzer --- */
+    groupFish() {
+      const inp = document.getElementById("grp-n");
+      const n = Math.max(0, Math.min(12, Math.floor(Number(inp.value) || 0)));
+      inp.value = n; this.groupN = n;
+      if (n) this.assignGroups(); else this.layoutZones();
+    }
+    assignGroups() {
+      const n = this.groupN, a = this.fishes.slice();
+      for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+      a.forEach((f, i) => { f.g = i % n; });
+      this.layoutZones();
+    }
+    layoutZones() {
+      this.zoneEls?.forEach(e => e.remove()); this.zoneEls = []; this.zones = null;
+      const n = this.groupN || 0; if (!n) return;
+      const W = this.W, T = FISH_TOP - 30, B = this.H - 60, Hh = B - T;
+      let best = null;
+      for (let r = 1; r <= n; r++) {                      // hücreler 1.6 en/boy oranına en yakın olan düzen
+        const c = Math.ceil(n / r), sc = Math.abs(Math.log((W / c) / (Hh / r) / 1.6));
+        if (!best || sc < best.sc) best = { r, c, sc };
+      }
+      this.zones = [];
+      for (let i = 0; i < n; i++) {
+        const row = Math.floor(i / best.c), inRow = row === best.r - 1 ? n - row * best.c : best.c, col = i - row * best.c;
+        const x0 = col * W / inRow, x1 = (col + 1) * W / inRow, y0 = T + row * Hh / best.r, y1 = T + (row + 1) * Hh / best.r;
+        const z = { x0: x0 + 6, x1: x1 - 6, y0: y0 + 6, y1: y1 - 6 };
+        this.zones.push(z);
+        const e = document.createElement("div"); e.className = "grp-zone";
+        e.style.cssText = `left:${z.x0}px;top:${z.y0}px;width:${z.x1 - z.x0}px;height:${z.y1 - z.y0}px`;
+        e.innerHTML = `<b>Grup ${i + 1}</b>`;
+        document.body.appendChild(e); this.zoneEls.push(e);
+      }
+    }
+
     pickRandomStudent(mode = "random") {
       // Adaylar: o an ekranda görünen balıklar (sıra eşiği + 🐟 filtresi). Sıralı modda bu turda seçilmiş (kalın) olanlar atlanır.
       const base = this.fishes.filter(f => f.vis);                 // yalnızca ekranda görünen balıklar
       if (this.isPicking || !base.length) return;
-      this.isPicking = true;
+      this.isPicking = true; this.pickedSet ??= new Set();
       let candidates = base;
       if (mode === "sequential") {
-        candidates = base.filter(f => !f.picked);
+        candidates = base.filter(f => !f.picked && !this.pickedSet.has(this.curClass + "|" + f.name));
         if (!candidates.length) {                    // herkes seçildi → yeni tur: kalınlıklar temizlenir
-          base.forEach(f => { f.picked = false; f.rowEl?.classList.remove("picked"); });
+          base.forEach(f => { f.picked = false; this.pickedSet.delete(this.curClass + "|" + f.name); f.rowEl?.classList.remove("picked"); });
           candidates = base; this.saveGame();
         }
       }
@@ -1346,8 +1387,8 @@
 
           let info = "";
           if (mode === "sequential") {
-            winner.picked = true; winner.rowEl?.classList.add("picked"); this.saveGame();
-            const left = base.filter(f => !f.picked).length;
+            winner.picked = true; this.pickedSet.add(this.curClass + "|" + winner.name); winner.rowEl?.classList.add("picked"); this.saveGame();
+            const left = base.filter(f => !f.picked && !this.pickedSet.has(this.curClass + "|" + f.name)).length;
             info = left > 0 ? `(Kalan: ${left})` : "(Tur bitti, sonraki seçimde liste yenilenir)";
           }
           this.els.pickerName.innerText = winner.name;
@@ -1524,6 +1565,7 @@
       };
       this.refreshDims(fish);
       this.fishes.push(fish); this.fishById.set(fish.id, fish);
+      if (this.groupN) { const c = Array(this.groupN).fill(0); this.fishes.forEach(f => f !== fish && c[f.g] != null && c[f.g]++); fish.g = c.indexOf(Math.min(...c)); }
       return fish;
     }
 
@@ -1870,11 +1912,21 @@
           }
         } else {
           fish.phase += 0.02 * dt;
-          fish.x += fish.vx * dt; fish.y += (fish.vy + Math.sin(fish.phase) * 0.25) * dt;
-          if (Math.abs(fish.vx) > 0.6) fish.vx = (fish.vx > 0 ? 1 : -1) * 0.35;
-          if (Math.abs(fish.vy) > 0.4) fish.vy = (fish.vy > 0 ? 1 : -1) * 0.2;
-          if (fish.x <= 0) { fish.x = 0; fish.vx = Math.abs(fish.vx); } else if (fish.x + fish.w >= W) { fish.x = W - fish.w; fish.vx = -Math.abs(fish.vx); }
-          if (fish.y <= FISH_TOP) { fish.y = FISH_TOP; fish.vy = Math.abs(fish.vy); } else if (fish.y + fish.h >= H - 70) { fish.y = H - 70 - fish.h; fish.vy = -Math.abs(fish.vy); }
+          const z = this.zones && this.zones[fish.g];
+          const L = z ? z.x0 : 0, R = z ? z.x1 : W, T = z ? z.y0 : FISH_TOP, Bt = z ? z.y1 : H - 70;
+          const outside = z && (fish.x < L - 1 || fish.x + fish.w > R + 1 || fish.y < T - 1 || fish.y + fish.h > Bt + 1);
+          if (outside) {                                   // kendi alanına yüzerek döner
+            const tx = Math.min(Math.max(fish.x, L), Math.max(L, R - fish.w)), ty = Math.min(Math.max(fish.y, T), Math.max(T, Bt - fish.h));
+            const dx = tx - fish.x, dy = ty - fish.y, d = Math.hypot(dx, dy) || 1, sp = Math.min(d, 2.5 * dt);
+            fish.x += dx / d * sp; fish.y += dy / d * sp;
+            if (Math.abs(dx) > 1) fish.vx = (dx > 0 ? 1 : -1) * Math.abs(fish.vx || 0.3);
+          } else {
+            fish.x += fish.vx * dt; fish.y += (fish.vy + Math.sin(fish.phase) * 0.25) * dt;
+            if (Math.abs(fish.vx) > 0.6) fish.vx = (fish.vx > 0 ? 1 : -1) * 0.35;
+            if (Math.abs(fish.vy) > 0.4) fish.vy = (fish.vy > 0 ? 1 : -1) * 0.2;
+            if (fish.x <= L) { fish.x = L; fish.vx = Math.abs(fish.vx); } else if (fish.x + fish.w >= R) { fish.x = Math.max(L, R - fish.w); fish.vx = -Math.abs(fish.vx); }
+            if (fish.y <= T) { fish.y = T; fish.vy = Math.abs(fish.vy); } else if (fish.y + fish.h >= Bt) { fish.y = Math.max(T, Bt - fish.h); fish.vy = -Math.abs(fish.vy); }
+          }
         }
 
         // Önbellekteki referanslar: getElementById/querySelector yok; yön sadece değişince yazılır
