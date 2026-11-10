@@ -1,0 +1,37 @@
+# apps-script/Kod.js değişince Google Apps Script'e yükler ve AYNI bağlantıyla yeni sürüm olarak dağıtır.
+# Gerekli gizli değişkenler (Settings → Secrets and variables → Actions):
+#   CLASPRC_JSON : bilgisayardaki ~/.clasprc.json dosyasının içeriği (clasp login ile oluşur)
+#   SCRIPT_ID    : Apps Script → Proje ayarları → Komut dosyası kimliği
+name: Apps Script dağıt
+on:
+  push:
+    branches: [main]
+    paths: ["apps-script/**"]
+  workflow_dispatch:
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+      SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
+      DEPLOY_ID: AKfycbzRhDLgNIN2EJbScOp2QISiehRLO0ThUsSdRk6NQPcMoImPS7O8sAFgp_GkgAKwskpo
+    steps:
+      - uses: actions/checkout@v4
+        if: env.CLASPRC_JSON != '' && env.SCRIPT_ID != ''
+      - uses: actions/setup-node@v4
+        if: env.CLASPRC_JSON != '' && env.SCRIPT_ID != ''
+        with: { node-version: 20 }
+      - name: Yükle ve dağıt
+        if: env.CLASPRC_JSON != '' && env.SCRIPT_ID != ''
+        run: |
+          npm i -g @google/clasp@2.4.2
+          printf '%s' "$CLASPRC_JSON" > ~/.clasprc.json
+          mkdir w && cd w
+          printf '{"scriptId":"%s","rootDir":"."}' "$SCRIPT_ID" > .clasp.json
+          clasp pull                      # mevcut proje ayarları (appsscript.json) korunur
+          rm -f *.js && cp ../apps-script/Kod.js Kod.js
+          clasp push -f
+          clasp deploy --deploymentId "$DEPLOY_ID" --description "GitHub $(date -u +%F' '%H:%M)"
+      - name: Gizli değişkenler eksik
+        if: env.CLASPRC_JSON == '' || env.SCRIPT_ID == ''
+        run: echo "CLASPRC_JSON / SCRIPT_ID eklenmemiş, dağıtım atlandı."
